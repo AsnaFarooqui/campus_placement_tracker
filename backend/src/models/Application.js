@@ -14,6 +14,10 @@ const applicationSchema = new mongoose.Schema({
     enum: ["Applied", "Shortlisted", "Interview Scheduled", "Selected", "Rejected"],
     default: "Applied",
   },
+  appliedAt: {
+    type: Date,
+    default: Date.now,
+  },
 });
 
 module.exports = mongoose.model("Application", applicationSchema);

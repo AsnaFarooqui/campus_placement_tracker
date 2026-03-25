@@ -1,17 +1,19 @@
 const express = require("express");
 const router = express.Router();
 
-const Application = require("../models/Application");
+const {
+  applyToJob,
+  getMyApplications,
+  getJobApplications,
+  updateStatus,
+} = require("../controllers/applicationController");
 
-router.post("/", async (req, res) => {
-  const application = new Application(req.body);
-  await application.save();
-  res.json(application);
-});
+const authMiddleware = require("../middlewares/authMiddleware");
 
-router.get("/", async (req, res) => {
-  const apps = await Application.find().populate("studentId jobId");
-  res.json(apps);
-});
+// 🔐 All routes protected
+router.post("/", authMiddleware, applyToJob);
+router.get("/me", authMiddleware, getMyApplications);
+router.get("/job/:jobId", authMiddleware, getJobApplications);
+router.patch("/:id", authMiddleware, updateStatus);
 
 module.exports = router;
