@@ -13,6 +13,7 @@ import Applications from "./pages/Applications";
 import Interviews from "./pages/Interviews";
 import Analytics from "./pages/Analytics";
 import NotFound from "./pages/NotFound";
+import Profile from "./pages/Profile";
 
 const queryClient = new QueryClient();
 
@@ -32,6 +33,7 @@ const App = () => (
             <Route path="/applications" element={<Applications />} />
             <Route path="/interviews" element={<Interviews />} />
             <Route path="/analytics" element={<Analytics />} />
+            <Route path="/profile" element={<Profile />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

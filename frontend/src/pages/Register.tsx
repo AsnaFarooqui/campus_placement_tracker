@@ -7,18 +7,39 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/lib/auth-context";
-import type { UserRole } from "@/lib/mock-data";
+import { registerUser, loginUser } from "@/lib/api";
+import type { UserRole } from "@/lib/auth-context";
 
 export default function Register() {
   const [role, setRole] = useState<UserRole>("student");
   const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [branch, setBranch] = useState("");
+  const [cgpa, setCgpa] = useState("");
+  const [error, setError] = useState("");
   const { login } = useAuth();
   const navigate = useNavigate();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    login(role, name);
-    navigate("/dashboard");
+    setError("");
+    try {
+      await registerUser({
+        name,
+        email,
+        password,
+        role,
+        cgpa: cgpa ? parseFloat(cgpa) : undefined,
+        branch: branch || undefined,
+        backlogs: 0,
+      });
+      const data = await loginUser(email, password);
+      login(data.token, data.user);
+      navigate("/dashboard");
+    } catch (err: any) {
+      setError(err.message);
+    }
   };
 
   return (
@@ -41,7 +62,7 @@ export default function Register() {
                 <Label>Full Name</Label>
                 <div className="relative mt-1.5">
                   <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input placeholder="John Doe" className="pl-10" value={name} onChange={(e) => setName(e.target.value)} />
+                  <Input placeholder="John Doe" className="pl-10" value={name} onChange={(e) => setName(e.target.value)} required />
                 </div>
               </div>
               <div>
@@ -61,7 +82,7 @@ export default function Register() {
               <Label>Email</Label>
               <div className="relative mt-1.5">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input type="email" placeholder="you@university.edu" className="pl-10" />
+                <Input type="email" placeholder="you@university.edu" className="pl-10" value={email} onChange={(e) => setEmail(e.target.value)} required />
               </div>
             </div>
 
@@ -69,7 +90,7 @@ export default function Register() {
               <Label>Password</Label>
               <div className="relative mt-1.5">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input type="password" placeholder="••••••••" className="pl-10" />
+                <Input type="password" placeholder="••••••••" className="pl-10" value={password} onChange={(e) => setPassword(e.target.value)} required />
               </div>
             </div>
 
@@ -77,7 +98,7 @@ export default function Register() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label>Branch</Label>
-                  <Select>
+                  <Select value={branch} onValueChange={setBranch}>
                     <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select" /></SelectTrigger>
                     <SelectContent>
                       {["Computer Science", "Electronics", "Mechanical", "Civil", "Information Technology"].map((b) => (
@@ -90,10 +111,14 @@ export default function Register() {
                   <Label>CGPA</Label>
                   <div className="relative mt-1.5">
                     <BookOpen className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <Input type="number" step="0.1" min="0" max="4" placeholder="3.5" className="pl-10" />
+                    <Input type="number" step="0.1" min="0" max="4" placeholder="3.5" className="pl-10" value={cgpa} onChange={(e) => setCgpa(e.target.value)} />
                   </div>
                 </div>
               </div>
+            )}
+
+            {error && (
+              <p className="text-red-500 text-sm text-center">{error}</p>
             )}
 
             <Button type="submit" className="w-full h-11 font-semibold bg-primary text-primary-foreground hover:bg-primary/90">

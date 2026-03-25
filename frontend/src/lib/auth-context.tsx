@@ -1,35 +1,57 @@
-import { createContext, useContext, useState, ReactNode } from "react";
-import { UserRole, currentStudent } from "./mock-data";
+import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { getProfile } from "./api";
+
+export type UserRole = "student" | "recruiter" | "officer";
+
+interface UserInfo {
+  id: string;
+  name: string;
+  email: string;
+  role: UserRole;
+  cgpa?: number;
+  branch?: string;
+  backlogs?: number;
+}
 
 interface AuthState {
   isAuthenticated: boolean;
-  role: UserRole;
-  userName: string;
-  login: (role: UserRole, name: string) => void;
+  token: string | null;
+  user: UserInfo | null;
+  login: (token: string, user: UserInfo) => void;
   logout: () => void;
 }
 
 const AuthContext = createContext<AuthState | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [role, setRole] = useState<UserRole>("student");
-  const [userName, setUserName] = useState("");
+  const [token, setToken] = useState<string | null>(localStorage.getItem("token"));
+  const [user, setUser] = useState<UserInfo | null>(null);
 
-  const login = (r: UserRole, name: string) => {
-    setIsAuthenticated(true);
-    setRole(r);
-    setUserName(name || (r === "student" ? currentStudent.name : r === "recruiter" ? "Recruiter" : "Placement Officer"));
+  useEffect(() => {
+    if (token) {
+      getProfile()
+        .then((data) => setUser(data))
+        .catch(() => {
+          localStorage.removeItem("token");
+          setToken(null);
+        });
+    }
+  }, [token]);
+
+  const login = (newToken: string, userInfo: UserInfo) => {
+    localStorage.setItem("token", newToken);
+    setToken(newToken);
+    setUser(userInfo);
   };
 
   const logout = () => {
-    setIsAuthenticated(false);
-    setRole("student");
-    setUserName("");
+    localStorage.removeItem("token");
+    setToken(null);
+    setUser(null);
   };
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated, role, userName, login, logout }}>
+    <AuthContext.Provider value={{ isAuthenticated: !!token, token, user, login, logout }}>
       {children}
     </AuthContext.Provider>
   );

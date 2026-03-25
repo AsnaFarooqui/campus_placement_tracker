@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/lib/auth-context";
+import { loginUser } from "@/lib/api";
 import type { UserRole } from "@/lib/mock-data";
 
 const roles: { value: UserRole; label: string; desc: string }[] = [
@@ -21,11 +22,19 @@ export default function Login() {
   const { login } = useAuth();
   const navigate = useNavigate();
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    login(selectedRole, "");
+  const [error, setError] = useState("");
+
+const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  setError("");
+  try {
+    const data = await loginUser(email, password);
+    login(data.token, data.user);
     navigate("/dashboard");
-  };
+  } catch (err: any) {
+    setError(err.message);
+  }
+};
 
   return (
     <div className="min-h-screen flex">
@@ -107,6 +116,9 @@ export default function Login() {
                   className="pl-10" />
               </div>
             </div>
+            {error && (
+  <p className="text-red-500 text-sm text-center">{error}</p>
+)}
             <Button type="submit" className="w-full h-11 font-semibold bg-primary text-primary-foreground hover:bg-primary/90">
               Sign In
             </Button>

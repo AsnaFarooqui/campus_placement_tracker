@@ -76,7 +76,7 @@ export const mockJobs: Job[] = [
     id: "j1", title: "Software Engineer", company: "Google", description: "Build scalable distributed systems.",
     salaryMin: 120000, salaryMax: 180000, minCGPA: 3.5, allowedBranches: ["Computer Science", "Information Technology"],
     maxBacklogs: 0, deadline: "2026-04-15", postedDate: "2026-03-01", status: "open", applicants: 42,
-    location: "Bangalore", type: "full-time", 
+    location: "Bangalore", type: "full-time",
   },
   {
     id: "j2", title: "Data Analyst Intern", company: "Microsoft", description: "Analyze large datasets to drive product decisions.",
