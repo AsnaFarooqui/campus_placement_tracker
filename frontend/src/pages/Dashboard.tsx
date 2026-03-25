@@ -1,38 +1,62 @@
 import DashboardLayout from '@/components/DashboardLayout';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import StatCard from '@/components/StatCard';
 import { useAuth } from '@/lib/auth-context';
-import { placementStats, mockApplications, mockInterviews } from '@/lib/mock-data';
 import { Briefcase, Clock3, CheckCircle2, Users, Award, Building2, DollarSign } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { useQuery } from '@tanstack/react-query';
-import { getRecruiterDashboard } from '@/lib/api';
+import { getRecruiterDashboard, getMyApplications, getMyInterviews, getOfficerDashboard } from '@/lib/api.ts';
+import { useNavigate } from "react-router-dom";
 
 function StudentDashboard() {
-  const activeApps = mockApplications.filter((a) => !['selected', 'rejected'].includes(a.status)).length;
-  const upcomingInterviews = mockInterviews.filter((i) => i.status === 'scheduled').length;
-  const selected = mockApplications.filter((a) => a.status === 'selected').length;
+  const navigate = useNavigate();
+
+  const queryClient = useQueryClient();
+  const { data: applications = [] } = useQuery({
+    queryKey: ["applications"],
+    queryFn: getMyApplications,
+  });
+
+  const { data: interviews = [] } = useQuery({
+    queryKey: ["interviews"],
+    queryFn: getMyInterviews,
+  });
+  const activeApps = applications.filter((a) => !['Selected', 'Rejected'].includes(a.status)).length;
+  const upcomingInterviews = interviews.filter((i) => i.status === 'scheduled').length;
+  const selected = applications.filter((a) => a.status === 'Selected').length;
 
   return (
     <>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        <StatCard icon={Briefcase} label="Applications" value={mockApplications.length} color="primary" />
-        <StatCard icon={Clock3} label="Active" value={activeApps} color="secondary" />
-        <StatCard icon={CheckCircle2} label="Selected" value={selected} color="success" />
-        <StatCard icon={Users} label="Interviews" value={upcomingInterviews} color="accent" />
+        <StatCard icon={Briefcase} label="Applications" value={applications.length} color="primary" 
+          onClick={() => navigate("/applications")} />
+        <StatCard icon={Clock3} label="Active" value={activeApps} color="secondary" 
+          onClick={() => navigate("/applications?status=active")} />
+        <StatCard icon={CheckCircle2} label="Selected" value={selected} color="success" 
+          onClick={() => navigate("/applications?status=selected")} />
+        <StatCard icon={Users} label="Interviews" value={upcomingInterviews} color="accent" 
+          onClick={() => navigate("/interviews")} />
       </div>
     </>
   );
 }
 
 function OfficerDashboard() {
-  const stats = placementStats;
+   const { data, isLoading } = useQuery({
+    queryKey: ["officer-dashboard"],
+    queryFn: getOfficerDashboard,
+  });
+
+  if (isLoading || !data) {
+    return <div className="text-muted-foreground">Loading...</div>;
+  }
+
   return (
     <>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        <StatCard icon={Users} label="Total Students" value={stats.totalStudents} color="primary" />
-        <StatCard icon={Award} label="Students Placed" value={stats.placedStudents} change={`${((stats.placedStudents / stats.totalStudents) * 100).toFixed(1)}%`} color="success" />
-        <StatCard icon={Building2} label="Companies" value={stats.totalCompanies} color="secondary" />
-        <StatCard icon={DollarSign} label="Avg Package (LPA)" value={stats.avgPackage} color="accent" />
+        <StatCard icon={Users} label="Total Students" value={data.totalStudents} color="primary" />
+        <StatCard icon={Award} label="Students Placed" value={data.placedStudents} change={`${((data.placedStudents / data.totalStudents) * 100).toFixed(1)}%`} color="success" />
+        <StatCard icon={Building2} label="Companies" value={data.totalCompanies} color="secondary" />
+        <StatCard icon={DollarSign} label="Avg Package (LPA)" value={data.avgPackage} color="accent" />
       </div>
     </>
   );

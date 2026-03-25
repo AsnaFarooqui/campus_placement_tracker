@@ -14,6 +14,7 @@ import Interviews from "./pages/Interviews";
 import Analytics from "./pages/Analytics";
 import NotFound from "./pages/NotFound";
 import Profile from "./pages/Profile";
+import ApplyJob from "./pages/ApplyJob";
 
 const queryClient = new QueryClient();
 
@@ -35,6 +36,7 @@ const App = () => (
             <Route path="/analytics" element={<Analytics />} />
             <Route path="/profile" element={<Profile />} />
             <Route path="*" element={<NotFound />} />
+            <Route path="/apply/:jobId" element={<ApplyJob />} />
           </Routes>
         </BrowserRouter>
       </AuthProvider>

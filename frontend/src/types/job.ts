@@ -65,3 +65,11 @@ export interface RecruiterDashboardResponse {
     createdAt: string;
   }>;
 }
+
+export interface OfficerDashboardResponse {
+  totalStudents: number;
+  placedStudents: number;
+  totalCompanies: number;
+  totalOffers: number;
+  avgPackage: number;
+}

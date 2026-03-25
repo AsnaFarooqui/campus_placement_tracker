@@ -6,15 +6,13 @@ const User = require("../models/User");
 // 🔹 Apply to job (ONLY STUDENTS)
 exports.applyToJob = async (req, res) => {
   try {
-    // ✅ Role check
     if (req.user.role !== "student") {
       return res.status(403).json({ message: "Only students can apply" });
     }
 
-    const studentId = req.user.id;
     const { jobId } = req.body;
+    const studentId = req.user.id;
 
-    // Basic input validation
     if (!jobId) {
       return res.status(400).json({ message: "jobId is required" });
     }
@@ -23,20 +21,18 @@ exports.applyToJob = async (req, res) => {
       return res.status(400).json({ message: "Invalid jobId" });
     }
 
+    const job = await Job.findById(jobId);
+    if (!job) return res.status(404).json({ message: "Job not found" });
+
     // ❗ Duplicate check
     const existing = await Application.findOne({ studentId, jobId });
     if (existing) {
-      return res.status(400).json({ message: "Already applied to this job" });
+      return res.status(400).json({ message: "Already applied" });
     }
 
     const student = await User.findById(studentId);
-    const job = await Job.findById(jobId);
 
-    if (!student || !job) {
-      return res.status(404).json({ message: "Student or Job not found" });
-    }
-
-    // ❗ Eligibility validation
+    // ❗ Eligibility check
     if (
       student.cgpa < job.minCGPA ||
       !job.allowedBranches.includes(student.branch) ||
@@ -45,8 +41,18 @@ exports.applyToJob = async (req, res) => {
       return res.status(400).json({ message: "Not eligible for this job" });
     }
 
-    const application = new Application({ studentId, jobId });
-    await application.save();
+    const application = await Application.create({
+      jobId,
+      studentId,
+      status: "Applied",
+      statusHistory: [
+        { status: "Applied", note: "Application submitted" }
+      ],
+    });
+
+    // update applicant count
+    job.applicants += 1;
+    await job.save();
 
     res.status(201).json(application);
 
@@ -54,6 +60,8 @@ exports.applyToJob = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
+
+
 
 // 🔹 Get MY applications (ONLY STUDENTS)
 exports.getMyApplications = async (req, res) => {
@@ -64,14 +72,28 @@ exports.getMyApplications = async (req, res) => {
 
     const applications = await Application.find({
       studentId: req.user.id
-    }).populate("jobId");
+    })
+      .populate("jobId", "title company")
+      .sort({ createdAt: -1 });
 
-    res.json(applications);
+    const formatted = applications.map(app => ({
+      _id: app._id,
+      jobId: app.jobId?._id,
+      jobTitle: app.jobId?.title || "Unknown Job",
+      company: app.jobId?.company || "Unknown Company",
+      status: app.status,
+      appliedDate: app.appliedAt,
+      lastUpdated: app.updatedAt,
+    }));
+
+    res.json(formatted);
 
   } catch (error) {
+    console.error("GET MY APPLICATIONS ERROR:", error); // 👈 ADD THIS
     res.status(500).json({ error: error.message });
   }
 };
+
 
 // 🔹 Get applications for a job (ONLY RECRUITERS)
 exports.getJobApplications = async (req, res) => {
@@ -83,7 +105,7 @@ exports.getJobApplications = async (req, res) => {
     const { jobId } = req.params;
 
     const applications = await Application.find({ jobId })
-      .populate("studentId");
+      .populate("studentId", "name email cgpa branch");
 
     res.json(applications);
 
@@ -91,6 +113,8 @@ exports.getJobApplications = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
+
+
 
 // 🔹 Update application status (ONLY RECRUITERS)
 exports.updateStatus = async (req, res) => {
@@ -100,7 +124,7 @@ exports.updateStatus = async (req, res) => {
     }
 
     const { id } = req.params;
-    const { status } = req.body;
+    const { status, note } = req.body;
 
     const validStatuses = [
       "Applied",
@@ -121,6 +145,13 @@ exports.updateStatus = async (req, res) => {
     }
 
     application.status = status;
+
+    // 🔥 update history
+    application.statusHistory.push({
+      status,
+      note: note || ""
+    });
+
     await application.save();
 
     res.json(application);

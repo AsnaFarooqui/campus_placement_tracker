@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import DashboardLayout from '@/components/DashboardLayout';
 import { useAuth } from '@/lib/auth-context';
-import { applyToJob, closeJob, createJob, getJobs, updateJob } from '@/lib/api';
+import { applyToJob, closeJob, createJob, getJobs, getMyApplications, updateJob } from '@/lib/api.ts';
 import type { JobFormValues, JobRecord } from '@/types/job';
 import { Search, MapPin, Clock, DollarSign, CheckCircle2, XCircle, Briefcase } from 'lucide-react';
 import { Input } from '@/components/ui/input';
@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
 import JobFormDialog from '@/components/jobs/JobFormDialog';
+import { useNavigate } from "react-router-dom";
 
 function formatMoney(value: number) {
   return new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(value);
@@ -22,6 +23,15 @@ export default function Jobs() {
   const [editingJob, setEditingJob] = useState<JobRecord | null>(null);
   const [editOpen, setEditOpen] = useState(false);
   const { role } = useAuth();
+
+  const navigate = useNavigate();
+  
+  const { data: myApps = [] } = useQuery({
+    queryKey: ["applications"],
+    queryFn: getMyApplications,
+  });
+
+  const appliedJobIds = new Set(myApps.map(a => a.jobId));
 
   const { data: jobs = [], isLoading } = useQuery({
     queryKey: ['jobs'],
@@ -64,17 +74,6 @@ export default function Jobs() {
     onError: (error: Error) => toast.error(error.message),
   });
 
-  const applyMutation = useMutation({
-    mutationFn: (jobId: string) => applyToJob(jobId),
-    onSuccess: () => {
-      toast.success('Application submitted');
-      queryClient.invalidateQueries({ queryKey: ['jobs'] });
-    },
-    onError: (error: Error & { details?: string[] }) => {
-      toast.error(error.details?.length ? `${error.message}: ${error.details.join(', ')}` : error.message);
-    },
-  });
-
   return (
     <DashboardLayout>
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
@@ -90,14 +89,18 @@ export default function Jobs() {
             <Input placeholder="Search jobs..." className="pl-10" value={search} onChange={(e) => setSearch(e.target.value)} />
           </div>
           {(role === 'recruiter' || role === 'officer') && (
-            <JobFormDialog triggerLabel="Post Job" onSubmit={async (data) => createMutation.mutateAsync(data)} />
+            <JobFormDialog triggerLabel="Post Job" onSubmit={async (data) => {
+              await createMutation.mutateAsync(data);
+            }} />
           )}
           {editingJob && (
             <JobFormDialog
               open={editOpen}
               onOpenChange={setEditOpen}
               initialJob={editingJob}
-              onSubmit={async (data) => updateMutation.mutateAsync({ id: editingJob._id, data })}
+              onSubmit={async (data) => {
+              await updateMutation.mutateAsync({ id: editingJob._id, data });
+            }}
             />
           )}
         </div>
@@ -164,10 +167,10 @@ export default function Jobs() {
 
                   {role === 'student' ? (
                     <Button
-                      disabled={!eligibility?.eligible || job.status !== 'open' || applyMutation.isPending}
-                      onClick={() => applyMutation.mutate(job._id)}
+                      disabled={!eligibility?.eligible || job.status !== 'open' ||  appliedJobIds.has(job._id)}
+                      onClick={() => navigate(`/apply/${job._id}`)}
                     >
-                      Apply now
+                      {appliedJobIds.has(job._id) ? "Applied" : "Apply now"}
                     </Button>
                   ) : (
                     <div className="flex gap-2">

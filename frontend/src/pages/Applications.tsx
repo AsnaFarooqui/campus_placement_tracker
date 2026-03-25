@@ -1,19 +1,50 @@
 import DashboardLayout from "@/components/DashboardLayout";
-import { mockApplications } from "@/lib/mock-data";
 import { motion } from "framer-motion";
 import { FileText, ChevronRight } from "lucide-react";
+import { useSearchParams } from "react-router-dom";
+import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { getMyApplications } from '@/lib/api.ts';
 
-const stages = ["applied", "shortlisted", "interview", "selected"] as const;
+const stages = ["Applied", "Shortlisted", "Interview", "Selected"] as const;
 
 const statusStyles: Record<string, { bg: string; dot: string }> = {
-  applied: { bg: "bg-info/10 text-info", dot: "bg-info" },
-  shortlisted: { bg: "bg-accent/10 text-accent", dot: "bg-accent" },
-  interview: { bg: "bg-secondary/10 text-secondary", dot: "bg-secondary" },
-  selected: { bg: "bg-success/10 text-success", dot: "bg-success" },
-  rejected: { bg: "bg-destructive/10 text-destructive", dot: "bg-destructive" },
+  Applied: { bg: "bg-info/10 text-info", dot: "bg-info" },
+  Shortlisted: { bg: "bg-accent/10 text-accent", dot: "bg-accent" },
+  Interview: { bg: "bg-secondary/10 text-secondary", dot: "bg-secondary" },
+  Selected: { bg: "bg-success/10 text-success", dot: "bg-success" },
+  Rejected: { bg: "bg-destructive/10 text-destructive", dot: "bg-destructive" },
 };
 
+function formatDate(dateString: string) {
+  const date = new Date(dateString);
+
+  return date.toLocaleString("en-IN", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
 export default function Applications() {
+  const queryClient = useQueryClient();
+  const { data: applications = [] } = useQuery({
+    queryKey: ["applications"],
+    queryFn: getMyApplications,
+  });
+  console.log(applications);
+  const [searchParams] = useSearchParams();
+  const initialFilter = searchParams.get("status") || "all";
+
+  const [filter, setFilter] = useState(initialFilter);
+
+  const filteredApps = applications.filter((app) => {
+    if (filter === "all") return true;
+    if (filter === "active") return !["Selected", "Rejected"].includes(app.status);
+    return app.status === filter;
+  });
   return (
     <DashboardLayout>
       <div className="mb-6">
@@ -21,8 +52,24 @@ export default function Applications() {
         <p className="text-muted-foreground mt-1">Track your placement journey</p>
       </div>
 
+      <div className="flex gap-2 mb-4 flex-wrap">
+        {["all", "Applied", "Shortlisted", "Interview", "Selected"].map((f) => (
+          <button
+            key={f}
+            onClick={() => setFilter(f)}
+            className={`px-3 py-1 rounded-full text-sm capitalize ${
+              filter === f
+                ? "bg-primary text-white"
+                : "bg-muted text-muted-foreground"
+            }`}
+          >
+            {f}
+          </button>
+        ))}
+      </div>
+
       <div className="space-y-4">
-        {mockApplications.map((app, i) => {
+        {filteredApps.map((app, i) => {
           const style = statusStyles[app.status];
           const stageIndex = stages.indexOf(app.status as any);
           return (
@@ -36,7 +83,7 @@ export default function Applications() {
                   </div>
                   <div>
                     <h3 className="font-display font-semibold">{app.jobTitle}</h3>
-                    <p className="text-sm text-muted-foreground">{app.company} · Applied {app.appliedDate}</p>
+                    <p className="text-sm text-muted-foreground">{app.company} · Applied {formatDate(app.appliedDate)}</p>
                   </div>
                 </div>
                 <span className={`text-xs font-medium px-2.5 py-1 rounded-full capitalize ${style.bg}`}>
@@ -47,7 +94,7 @@ export default function Applications() {
               {/* Pipeline */}
               <div className="flex items-center gap-1">
                 {stages.map((stage, si) => {
-                  const isActive = si <= stageIndex && app.status !== "rejected";
+                  const isActive = si <= stageIndex && app.status !== "Rejected";
                   const isCurrent = si === stageIndex;
                   return (
                     <div key={stage} className="flex items-center gap-1 flex-1">

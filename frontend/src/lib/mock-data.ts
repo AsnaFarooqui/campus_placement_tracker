@@ -33,7 +33,7 @@ export interface Job {
   status: "open" | "closed";
   applicants: number;
   location: string;
-  type: "full-time" | "internship";
+  employmentType: "full-time" | "internship";
 }
 
 export type ApplicationStatus = "applied" | "shortlisted" | "interview" | "selected" | "rejected";
@@ -76,31 +76,31 @@ export const mockJobs: Job[] = [
     id: "j1", title: "Software Engineer", company: "Google", description: "Build scalable distributed systems.",
     salaryMin: 120000, salaryMax: 180000, minCGPA: 3.5, allowedBranches: ["Computer Science", "Information Technology"],
     maxBacklogs: 0, deadline: "2026-04-15", postedDate: "2026-03-01", status: "open", applicants: 42,
-    location: "Bangalore", type: "full-time",
+    location: "Bangalore", employmentType: "full-time",
   },
   {
     id: "j2", title: "Data Analyst Intern", company: "Microsoft", description: "Analyze large datasets to drive product decisions.",
     salaryMin: 40000, salaryMax: 60000, minCGPA: 3.0, allowedBranches: ["Computer Science", "Mathematics", "Statistics"],
     maxBacklogs: 1, deadline: "2026-04-20", postedDate: "2026-03-05", status: "open", applicants: 78,
-    location: "Hyderabad", type: "internship",
+    location: "Hyderabad", employmentType: "internship",
   },
   {
     id: "j3", title: "Product Manager", company: "Amazon", description: "Lead product strategy for AWS services.",
     salaryMin: 140000, salaryMax: 200000, minCGPA: 3.2, allowedBranches: ["Computer Science", "Electronics", "Mechanical"],
     maxBacklogs: 0, deadline: "2026-03-25", postedDate: "2026-02-28", status: "open", applicants: 35,
-    location: "Mumbai", type: "full-time",
+    location: "Mumbai", employmentType: "full-time",
   },
   {
     id: "j4", title: "Frontend Developer", company: "Flipkart", description: "Build beautiful user interfaces for e-commerce.",
     salaryMin: 80000, salaryMax: 120000, minCGPA: 3.0, allowedBranches: ["Computer Science", "Information Technology"],
     maxBacklogs: 2, deadline: "2026-04-30", postedDate: "2026-03-10", status: "open", applicants: 56,
-    location: "Bangalore", type: "full-time",
+    location: "Bangalore", employmentType: "full-time",
   },
   {
     id: "j5", title: "ML Engineer", company: "Tesla", description: "Work on autonomous driving ML models.",
     salaryMin: 150000, salaryMax: 220000, minCGPA: 3.7, allowedBranches: ["Computer Science", "Artificial Intelligence"],
     maxBacklogs: 0, deadline: "2026-04-10", postedDate: "2026-03-08", status: "open", applicants: 23,
-    location: "Remote", type: "full-time",
+    location: "Remote", employmentType: "full-time",
   },
 ];
 

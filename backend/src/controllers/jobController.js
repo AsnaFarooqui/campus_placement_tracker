@@ -168,7 +168,7 @@ exports.getRecruiterDashboard = asyncHandler(async (req, res) => {
     closedJobs: jobs.filter((job) => job.status === 'closed').length,
     totalApplications: applications.length,
     shortlisted: applications.filter((app) => app.status === 'Shortlisted').length,
-    selected: applications.filter((app) => app.status === 'Selected').length,
+    selected: applications.filter((app) => app.status === 'selected').length,
     rejected: applications.filter((app) => app.status === 'Rejected').length,
   };
 
@@ -177,7 +177,7 @@ exports.getRecruiterDashboard = asyncHandler(async (req, res) => {
     const company = application.jobId?.company || 'Unknown';
     const entry = companyBreakdownMap.get(company) || { company, applications: 0, selected: 0 };
     entry.applications += 1;
-    if (application.status === 'Selected') entry.selected += 1;
+    if (application.status === 'selected') entry.selected += 1;
     companyBreakdownMap.set(company, entry);
   }
 

@@ -1,6 +1,42 @@
-import type { JobFormValues, JobRecord, RecruiterDashboardResponse } from '@/types/job';
+import type { JobFormValues, JobRecord, RecruiterDashboardResponse, OfficerDashboardResponse } from '@/types/job';
 
 const BASE_URL = 'http://localhost:5000/api';
+
+type Application = {
+  id: string;
+  jobId: string;
+  jobTitle: string;
+  company: string;
+  status: "Applied" | "Shortlisted" | "Interview" | "Selected" | "Rejected";
+  appliedDate: string;
+  lastUpdated: string;
+  resume?: string;
+  coverLetter?: string;
+};
+
+export interface InterviewSlot {
+  id: string;
+  jobTitle: string;
+  company: string;
+  date: string;
+  time: string;
+  type: "aptitude" | "technical" | "hr";
+  status: "scheduled" | "completed" | "cancelled";
+  candidate?: string;
+}
+
+type LoginResponse = {
+  token: string;
+  user: {
+    id: string;
+    name: string;
+    email: string;
+    role: "student" | "recruiter" | "officer";
+    cgpa?: number;
+    branch?: string;
+    backlogs?: number;
+  };
+};
 
 function getToken() {
   return localStorage.getItem('token');
@@ -34,8 +70,11 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   return data as T;
 }
 
-export async function loginUser(email: string, password: string) {
-  return request('/auth/login', {
+export async function loginUser(
+  email: string,
+  password: string
+): Promise<LoginResponse> {
+  return request<LoginResponse>('/auth/login', {
     method: 'POST',
     body: JSON.stringify({ email, password }),
   });
@@ -74,7 +113,12 @@ export async function updateProfile(data: {
 
 export async function getJobs(search = '') {
   const query = search ? `?search=${encodeURIComponent(search)}` : '';
-  return request<JobRecord[]>(`/jobs${query}`);
+  const data = await request<JobRecord[]>(`/jobs${query}`);
+
+  return data.map((job) => ({
+    ...job,
+    id: job._id,
+  }));
 }
 
 export async function createJob(job: JobFormValues) {
@@ -97,12 +141,42 @@ export async function closeJob(jobId: string) {
   });
 }
 
-export async function applyToJob(jobId: string) {
-  return request(`/jobs/${jobId}/apply`, {
-    method: 'POST',
+export async function applyToJob(
+  jobId: string,
+  data: { resume: string; coverLetter: string }
+) {
+  return request("/applications", {
+    method: "POST",
+    body: JSON.stringify({ jobId, ...data }),
   });
+}
+
+export async function getMyApplications(): Promise<Application[]> {
+  const data = await request<any[]>("/applications/me");
+
+  return data.map((app) => ({
+    id: app._id,
+    jobId: app.jobId?._id || app.jobId,
+    jobTitle: app.jobTitle || app.jobId?.title || "Unknown",
+    company: app.company || app.jobId?.company || "Unknown",
+    
+    status: app.status,
+    appliedDate: app.appliedDate || app.appliedAt,
+    lastUpdated: app.lastUpdated || app.updatedAt,
+
+    resume: app.resume,
+    coverLetter: app.coverLetter,
+  }));
+}
+
+export async function getMyInterviews(): Promise<InterviewSlot[]> {
+  return request<InterviewSlot[]>("/interviews");
 }
 
 export async function getRecruiterDashboard() {
   return request<RecruiterDashboardResponse>('/jobs/dashboard/recruiter');
+}
+
+export async function getOfficerDashboard() {
+  return request<OfficerDashboardResponse>('/dashboard/officer');
 }

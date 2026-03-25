@@ -7,6 +7,7 @@ interface StatCardProps {
   value: string | number;
   change?: string;
   color?: "primary" | "secondary" | "accent" | "success" | "info";
+  onClick?: () => void;
 }
 
 const colorMap = {
@@ -17,9 +18,9 @@ const colorMap = {
   info: "bg-info/10 text-info",
 };
 
-export default function StatCard({ icon: Icon, label, value, change, color = "primary" }: StatCardProps) {
+export default function StatCard({ icon: Icon, label, value, change, color = "primary", onClick }: StatCardProps) {
   return (
-    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+    <motion.div onClick={onClick} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
       className="bg-card rounded-xl border border-border p-5 hover:shadow-md transition-shadow">
       <div className="flex items-center justify-between mb-3">
         <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${colorMap[color]}`}>
