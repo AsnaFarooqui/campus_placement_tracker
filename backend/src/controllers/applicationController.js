@@ -1,3 +1,4 @@
+const mongoose = require("mongoose");
 const Application = require("../models/Application");
 const Job = require("../models/Job");
 const User = require("../models/User");
@@ -12,6 +13,15 @@ exports.applyToJob = async (req, res) => {
 
     const studentId = req.user.id;
     const { jobId } = req.body;
+
+    // Basic input validation
+    if (!jobId) {
+      return res.status(400).json({ message: "jobId is required" });
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(jobId)) {
+      return res.status(400).json({ message: "Invalid jobId" });
+    }
 
     // ❗ Duplicate check
     const existing = await Application.findOne({ studentId, jobId });

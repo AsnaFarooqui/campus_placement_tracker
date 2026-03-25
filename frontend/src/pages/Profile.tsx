@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/lib/auth-context";
-import { updateProfile } from "@/lib/api";
+import { updateProfile } from "@/lib/api.ts";
 import DashboardLayout from "@/components/DashboardLayout";
 
 export default function Profile() {

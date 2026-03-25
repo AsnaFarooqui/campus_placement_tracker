@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/lib/auth-context";
-import { registerUser, loginUser } from "@/lib/api";
+import { registerUser, loginUser } from "@/lib/api.ts";
 import type { UserRole } from "@/lib/auth-context";
 
 export default function Register() {

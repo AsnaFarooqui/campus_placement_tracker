@@ -220,24 +220,3 @@ describe("Job Posting — Eligibility Check", () => {
     expect(checkEligibility(job, student)).toBe(true);
   });
 });
-```
-
----
-
-## ▶️ How to run the tests
-
-In your terminal, make sure you're in the frontend folder:
-```
-cd frontend
-npm run test
-```
-
-You should see all **15 tests passing** in green like this:
-```
-✓ Job Posting — Create (6)
-✓ Job Posting — Edit (4)
-✓ Job Posting — Close (2)
-✓ Job Posting — Eligibility Check (5)
-
-Test Files  1 passed
-Tests      15 passed

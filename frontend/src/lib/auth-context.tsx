@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
-import { getProfile } from "./api";
+import { getProfile } from "./api.ts";
 
 export type UserRole = "student" | "recruiter" | "officer";
 

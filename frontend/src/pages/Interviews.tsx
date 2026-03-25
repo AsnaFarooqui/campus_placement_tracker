@@ -254,7 +254,10 @@ function CreateSlotDialog({ open, onClose, onCreate, existingSlots }: {
 // ── main page ──────────────────────────────────────────────────────────────────
 
 export default function Interviews() {
-  const { role, userName } = useAuth();
+  const { user } = useAuth();
+
+  const role = user?.role;
+  const userName = user?.name;
   const [slots, setSlots] = useState<InterviewSlot[]>(mockInterviews);
   const [view, setView] = useState<"list" | "calendar">("list");
   const [filterType, setFilterType] = useState("all");

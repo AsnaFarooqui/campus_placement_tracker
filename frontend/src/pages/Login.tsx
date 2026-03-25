@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/lib/auth-context";
-import { loginUser } from "@/lib/api";
+import { loginUser } from "@/lib/api.ts";
 import type { UserRole } from "@/lib/mock-data";
 
 const roles: { value: UserRole; label: string; desc: string }[] = [

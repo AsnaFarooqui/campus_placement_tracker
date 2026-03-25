@@ -28,10 +28,14 @@ const navItems = {
 };
 
 export default function AppSidebar() {
-  const { role, userName, logout } = useAuth();
+  const { user } = useAuth();
+
+  const role = user?.role;
+  const userName = user?.name;
+  const { logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const items = navItems[role];
+  const items = role ? navItems[role] : [];
 
   return (
     <aside className="w-64 min-h-screen bg-sidebar flex flex-col border-r border-sidebar-border shrink-0">
@@ -45,7 +49,7 @@ export default function AppSidebar() {
 
       {/* Nav */}
       <nav className="flex-1 px-3 space-y-1">
-        {items.map((item) => {
+        {items?.map((item) => {
           const active = location.pathname === item.path;
           return (
             <button key={item.path} onClick={() => navigate(item.path)}
