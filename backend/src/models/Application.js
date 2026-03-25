@@ -40,6 +40,10 @@ const applicationSchema = new mongoose.Schema(
       type: [statusHistorySchema],
       default: [{ status: 'Applied', note: 'Application submitted' }],
     },
+    appliedAt: {
+      type: Date,
+      default: Date.now,
+    },
   },
   { timestamps: true }
 );
