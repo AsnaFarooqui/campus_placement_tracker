@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { getProfile } from "./api.ts";
 
-export type UserRole = "student" | "recruiter" | "officer";
+export type UserRole = 'student' | 'recruiter' | 'officer';
 
 interface UserInfo {
   id: string;
@@ -17,6 +17,8 @@ interface AuthState {
   isAuthenticated: boolean;
   token: string | null;
   user: UserInfo | null;
+  role: UserRole;
+  userName: string;
   login: (token: string, user: UserInfo) => void;
   logout: () => void;
 }
@@ -24,34 +26,55 @@ interface AuthState {
 const AuthContext = createContext<AuthState | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [token, setToken] = useState<string | null>(localStorage.getItem("token"));
+  const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
   const [user, setUser] = useState<UserInfo | null>(null);
 
   useEffect(() => {
     if (token) {
       getProfile()
-        .then((data) => setUser(data))
+        .then((data: any) =>
+          setUser({
+            id: data._id || data.id,
+            name: data.name,
+            email: data.email,
+            role: data.role,
+            cgpa: data.cgpa,
+            branch: data.branch,
+            backlogs: data.backlogs,
+          })
+        )
         .catch(() => {
-          localStorage.removeItem("token");
+          localStorage.removeItem('token');
           setToken(null);
+          setUser(null);
         });
     }
   }, [token]);
 
   const login = (newToken: string, userInfo: UserInfo) => {
-    localStorage.setItem("token", newToken);
+    localStorage.setItem('token', newToken);
     setToken(newToken);
     setUser(userInfo);
   };
 
   const logout = () => {
-    localStorage.removeItem("token");
+    localStorage.removeItem('token');
     setToken(null);
     setUser(null);
   };
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated: !!token, token, user, login, logout }}>
+    <AuthContext.Provider
+      value={{
+        isAuthenticated: !!token,
+        token,
+        user,
+        role: user?.role || 'student',
+        userName: user?.name || 'User',
+        login,
+        logout,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
@@ -59,6 +82,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 export function useAuth() {
   const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error("useAuth must be used within AuthProvider");
+  if (!ctx) throw new Error('useAuth must be used within AuthProvider');
   return ctx;
 }

@@ -1,86 +1,181 @@
-import { useState } from "react";
-import DashboardLayout from "@/components/DashboardLayout";
-import { mockJobs, currentStudent } from "@/lib/mock-data";
-import { useAuth } from "@/lib/auth-context";
-import { Search, MapPin, Clock, DollarSign, CheckCircle2, XCircle, Briefcase } from "lucide-react";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { motion } from "framer-motion";
-import { toast } from "sonner";
+import { useMemo, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import DashboardLayout from '@/components/DashboardLayout';
+import { useAuth } from '@/lib/auth-context';
+import { applyToJob, closeJob, createJob, getJobs, updateJob } from '@/lib/api';
+import type { JobFormValues, JobRecord } from '@/types/job';
+import { Search, MapPin, Clock, DollarSign, CheckCircle2, XCircle, Briefcase } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { motion } from 'framer-motion';
+import { toast } from 'sonner';
+import JobFormDialog from '@/components/jobs/JobFormDialog';
 
-function checkEligibility(job: typeof mockJobs[0]) {
-  const reasons: string[] = [];
-  if (currentStudent.cgpa < job.minCGPA) reasons.push(`CGPA ${currentStudent.cgpa} < ${job.minCGPA}`);
-  if (!job.allowedBranches.includes(currentStudent.branch)) reasons.push(`Branch not eligible`);
-  if (currentStudent.backlogs > job.maxBacklogs) reasons.push(`Too many backlogs`);
-  return { eligible: reasons.length === 0, reasons };
+function formatMoney(value: number) {
+  return new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(value);
 }
 
 export default function Jobs() {
-  const [search, setSearch] = useState("");
+  const queryClient = useQueryClient();
+  const [search, setSearch] = useState('');
+  const [editingJob, setEditingJob] = useState<JobRecord | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
   const { role } = useAuth();
-  const filtered = mockJobs.filter(
-    (j) => j.title.toLowerCase().includes(search.toLowerCase()) || j.company.toLowerCase().includes(search.toLowerCase())
+
+  const { data: jobs = [], isLoading } = useQuery({
+    queryKey: ['jobs'],
+    queryFn: () => getJobs(),
+  });
+
+  const filteredJobs = useMemo(
+    () => jobs.filter((j) => j.title.toLowerCase().includes(search.toLowerCase()) || j.company.toLowerCase().includes(search.toLowerCase())),
+    [jobs, search]
   );
+
+  const createMutation = useMutation({
+    mutationFn: (data: JobFormValues) => createJob(data),
+    onSuccess: () => {
+      toast.success('Job created successfully');
+      queryClient.invalidateQueries({ queryKey: ['jobs'] });
+      queryClient.invalidateQueries({ queryKey: ['recruiter-dashboard'] });
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: Partial<JobFormValues> }) => updateJob(id, data),
+    onSuccess: () => {
+      toast.success('Job updated successfully');
+      setEditingJob(null);
+      queryClient.invalidateQueries({ queryKey: ['jobs'] });
+      queryClient.invalidateQueries({ queryKey: ['recruiter-dashboard'] });
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const closeMutation = useMutation({
+    mutationFn: (jobId: string) => closeJob(jobId),
+    onSuccess: () => {
+      toast.success('Job closed successfully');
+      queryClient.invalidateQueries({ queryKey: ['jobs'] });
+      queryClient.invalidateQueries({ queryKey: ['recruiter-dashboard'] });
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const applyMutation = useMutation({
+    mutationFn: (jobId: string) => applyToJob(jobId),
+    onSuccess: () => {
+      toast.success('Application submitted');
+      queryClient.invalidateQueries({ queryKey: ['jobs'] });
+    },
+    onError: (error: Error & { details?: string[] }) => {
+      toast.error(error.details?.length ? `${error.message}: ${error.details.join(', ')}` : error.message);
+    },
+  });
 
   return (
     <DashboardLayout>
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
-          <h1 className="font-display text-2xl font-bold">Job Listings</h1>
-          <p className="text-muted-foreground mt-1">{filtered.length} positions available</p>
+          <h1 className="font-display text-2xl font-bold">{role === 'recruiter' ? 'Job Posting and Management' : 'Job Listings'}</h1>
+          <p className="text-muted-foreground mt-1">
+            {role === 'recruiter' ? 'Create, edit, and close jobs from one place.' : `${filteredJobs.length} positions available`}
+          </p>
         </div>
-        <div className="relative w-full sm:w-72">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input placeholder="Search jobs..." className="pl-10" value={search} onChange={(e) => setSearch(e.target.value)} />
+        <div className="flex gap-3 w-full sm:w-auto">
+          <div className="relative w-full sm:w-72">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input placeholder="Search jobs..." className="pl-10" value={search} onChange={(e) => setSearch(e.target.value)} />
+          </div>
+          {(role === 'recruiter' || role === 'officer') && (
+            <JobFormDialog triggerLabel="Post Job" onSubmit={async (data) => createMutation.mutateAsync(data)} />
+          )}
+          {editingJob && (
+            <JobFormDialog
+              open={editOpen}
+              onOpenChange={setEditOpen}
+              initialJob={editingJob}
+              onSubmit={async (data) => updateMutation.mutateAsync({ id: editingJob._id, data })}
+            />
+          )}
         </div>
       </div>
 
+      {isLoading ? <div className="text-muted-foreground">Loading jobs...</div> : null}
+
       <div className="grid gap-4">
-        {filtered.map((job, i) => {
-          const { eligible, reasons } = checkEligibility(job);
+        {filteredJobs.map((job, i) => {
+          const eligibility = job.eligibility;
           return (
-            <motion.div key={job.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+            <motion.div
+              key={job._id}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.05 }}
-              className="bg-card rounded-xl border border-border p-6 hover:shadow-md transition-shadow">
+              className="bg-card rounded-xl border border-border p-6 hover:shadow-md transition-shadow"
+            >
               <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
                 <div className="flex gap-4">
                   <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
                     <Briefcase className="w-6 h-6 text-primary" />
                   </div>
                   <div>
-                    <h3 className="font-display font-semibold text-lg">{job.title}</h3>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="font-display font-semibold text-lg">{job.title}</h3>
+                      <Badge variant={job.status === 'open' ? 'default' : 'secondary'}>{job.status}</Badge>
+                    </div>
                     <p className="text-muted-foreground text-sm">{job.company}</p>
                     <div className="flex flex-wrap gap-3 mt-2 text-xs text-muted-foreground">
                       <span className="flex items-center gap-1"><MapPin className="w-3.5 h-3.5" />{job.location}</span>
-                      <span className="flex items-center gap-1"><DollarSign className="w-3.5 h-3.5" />₹{job.salaryMin / 1000}K - ₹{job.salaryMax / 1000}K</span>
-                      <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5" />Deadline: {job.deadline}</span>
+                      <span className="flex items-center gap-1"><DollarSign className="w-3.5 h-3.5" />₹{formatMoney(job.salaryMin)} - ₹{formatMoney(job.salaryMax)}</span>
+                      <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5" />Deadline: {job.deadline.slice(0, 10)}</span>
                     </div>
+                    <p className="text-sm text-muted-foreground mt-3 max-w-3xl">{job.description}</p>
                     <div className="flex flex-wrap gap-1.5 mt-3">
                       <Badge variant="secondary" className="text-xs">CGPA ≥ {job.minCGPA}</Badge>
                       <Badge variant="secondary" className="text-xs">Max {job.maxBacklogs} backlogs</Badge>
-                      <Badge variant="outline" className="text-xs capitalize">{job.type}</Badge>
+                      <Badge variant="outline" className="text-xs capitalize">{job.employmentType}</Badge>
+                      {job.allowedBranches.map((branch) => (
+                        <Badge variant="outline" className="text-xs" key={branch}>{branch}</Badge>
+                      ))}
                     </div>
                   </div>
                 </div>
 
-                <div className="flex flex-col items-end gap-2 shrink-0">
-                  <span className="text-xs text-muted-foreground">{job.applicants} applicants</span>
-                  {role === "student" && (
-                    eligible ? (
-                      <Button size="sm" className="bg-secondary text-secondary-foreground hover:bg-secondary/90"
-                        onClick={() => toast.success(`Applied to ${job.title} at ${job.company}`)}>
-                        <CheckCircle2 className="w-4 h-4 mr-1" /> Apply
-                      </Button>
+                <div className="flex flex-col items-end gap-2 shrink-0 min-w-[220px]">
+                  {role === 'student' && eligibility ? (
+                    eligibility.eligible ? (
+                      <div className="flex items-center gap-2 text-success text-sm">
+                        <CheckCircle2 className="w-4 h-4" /> Eligible
+                      </div>
                     ) : (
                       <div className="text-right">
-                        <Button size="sm" variant="outline" disabled className="opacity-50">
-                          <XCircle className="w-4 h-4 mr-1" /> Not Eligible
-                        </Button>
-                        <div className="text-xs text-destructive mt-1">{reasons.join(", ")}</div>
+                        <div className="flex items-center justify-end gap-2 text-destructive text-sm">
+                          <XCircle className="w-4 h-4" /> Not eligible
+                        </div>
+                        <ul className="text-xs text-muted-foreground mt-2 space-y-1">
+                          {eligibility.reasons.map((reason) => <li key={reason}>• {reason}</li>)}
+                        </ul>
                       </div>
                     )
+                  ) : null}
+
+                  {role === 'student' ? (
+                    <Button
+                      disabled={!eligibility?.eligible || job.status !== 'open' || applyMutation.isPending}
+                      onClick={() => applyMutation.mutate(job._id)}
+                    >
+                      Apply now
+                    </Button>
+                  ) : (
+                    <div className="flex gap-2">
+                      <Button variant="outline" onClick={() => { setEditingJob(job); setEditOpen(true); }}>Edit</Button>
+                      <Button variant="destructive" disabled={job.status === 'closed'} onClick={() => closeMutation.mutate(job._id)}>
+                        Close
+                      </Button>
+                    </div>
                   )}
                 </div>
               </div>
