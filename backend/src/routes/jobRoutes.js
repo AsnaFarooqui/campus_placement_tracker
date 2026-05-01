@@ -14,11 +14,11 @@ const {
 } = require('../controllers/jobController');
 
 router.get('/', authMiddleware, getJobs);
-router.get('/dashboard/recruiter', authMiddleware, roleMiddleware('recruiter', 'officer'), getRecruiterDashboard);
+router.get('/dashboard/recruiter', authMiddleware, roleMiddleware('recruiter', 'officer', 'admin'), getRecruiterDashboard);
 router.get('/:id', authMiddleware, getJobById);
-router.post('/', authMiddleware, roleMiddleware('recruiter', 'officer'), createJob);
-router.put('/:id', authMiddleware, roleMiddleware('recruiter', 'officer'), updateJob);
-router.patch('/:id/close', authMiddleware, roleMiddleware('recruiter', 'officer'), closeJob);
+router.post('/', authMiddleware, roleMiddleware('recruiter', 'officer', 'admin'), createJob);
+router.put('/:id', authMiddleware, roleMiddleware('recruiter', 'officer', 'admin'), updateJob);
+router.patch('/:id/close', authMiddleware, roleMiddleware('recruiter', 'officer', 'admin'), closeJob);
 router.post('/:id/apply', authMiddleware, roleMiddleware('student'), applyToJob);
 
 module.exports = router;

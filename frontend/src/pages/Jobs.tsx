@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import DashboardLayout from '@/components/DashboardLayout';
 import { useAuth } from '@/lib/auth-context';
-import { applyToJob, closeJob, createJob, getJobs, getMyApplications, updateJob } from '@/lib/api.ts';
+import { closeJob, createJob, getJobs, getMyApplications, updateJob } from '@/lib/api.ts';
 import type { JobFormValues, JobRecord } from '@/types/job';
 import { Search, MapPin, Clock, DollarSign, CheckCircle2, XCircle, Briefcase } from 'lucide-react';
 import { Input } from '@/components/ui/input';
@@ -12,6 +12,7 @@ import { motion } from 'framer-motion';
 import { toast } from 'sonner';
 import JobFormDialog from '@/components/jobs/JobFormDialog';
 import { useNavigate } from "react-router-dom";
+import ConfirmDialog from '@/components/ConfirmDialog';
 
 function formatMoney(value: number) {
   return new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(value);
@@ -22,6 +23,7 @@ export default function Jobs() {
   const [search, setSearch] = useState('');
   const [editingJob, setEditingJob] = useState<JobRecord | null>(null);
   const [editOpen, setEditOpen] = useState(false);
+  const [jobToClose, setJobToClose] = useState<JobRecord | null>(null);
   const { role } = useAuth();
 
   const navigate = useNavigate();
@@ -29,6 +31,7 @@ export default function Jobs() {
   const { data: myApps = [] } = useQuery({
     queryKey: ["applications"],
     queryFn: getMyApplications,
+    enabled: role === "student",
   });
 
   const appliedJobIds = new Set(myApps.map(a => a.jobId));
@@ -50,7 +53,7 @@ export default function Jobs() {
       queryClient.invalidateQueries({ queryKey: ['jobs'] });
       queryClient.invalidateQueries({ queryKey: ['recruiter-dashboard'] });
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error & { details?: string[] | null }) => toast.error(error.details?.join('\n') || error.message),
   });
 
   const updateMutation = useMutation({
@@ -61,7 +64,7 @@ export default function Jobs() {
       queryClient.invalidateQueries({ queryKey: ['jobs'] });
       queryClient.invalidateQueries({ queryKey: ['recruiter-dashboard'] });
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error & { details?: string[] | null }) => toast.error(error.details?.join('\n') || error.message),
   });
 
   const closeMutation = useMutation({
@@ -71,7 +74,7 @@ export default function Jobs() {
       queryClient.invalidateQueries({ queryKey: ['jobs'] });
       queryClient.invalidateQueries({ queryKey: ['recruiter-dashboard'] });
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error & { details?: string[] | null }) => toast.error(error.details?.join('\n') || error.message),
   });
 
   return (
@@ -117,11 +120,11 @@ export default function Jobs() {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.05 }}
-              className="bg-card rounded-xl border border-border p-6 hover:shadow-md transition-shadow"
+              className="bg-card rounded-lg border border-border p-6 hover:shadow-md transition-shadow"
             >
               <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
                 <div className="flex gap-4">
-                  <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                  <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
                     <Briefcase className="w-6 h-6 text-primary" />
                   </div>
                   <div>
@@ -175,7 +178,7 @@ export default function Jobs() {
                   ) : (
                     <div className="flex gap-2">
                       <Button variant="outline" onClick={() => { setEditingJob(job); setEditOpen(true); }}>Edit</Button>
-                      <Button variant="destructive" disabled={job.status === 'closed'} onClick={() => closeMutation.mutate(job._id)}>
+                      <Button variant="destructive" disabled={job.status === 'closed'} onClick={() => setJobToClose(job)}>
                         Close
                       </Button>
                     </div>
@@ -185,7 +188,25 @@ export default function Jobs() {
             </motion.div>
           );
         })}
+        {!isLoading && filteredJobs.length === 0 && (
+          <div className="rounded-lg border border-dashed border-border bg-card p-8 text-center text-sm text-muted-foreground">
+            No jobs match your search or role filter.
+          </div>
+        )}
       </div>
+      <ConfirmDialog
+        open={!!jobToClose}
+        onOpenChange={(open) => !open && setJobToClose(null)}
+        title="Close this job posting?"
+        description={`Students will no longer be able to apply for ${jobToClose?.title || 'this job'}. Existing applications will remain visible for tracking.`}
+        confirmLabel="Close job"
+        onConfirm={() => {
+          if (jobToClose) {
+            closeMutation.mutate(jobToClose._id);
+            setJobToClose(null);
+          }
+        }}
+      />
     </DashboardLayout>
   );
 }

@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/lib/auth-context";
-import { registerUser, loginUser } from "@/lib/api.ts";
+import { registerUser, loginUser, verifyEmail } from "@/lib/api.ts";
 import type { UserRole } from "@/lib/auth-context";
 
 export default function Register() {
@@ -17,6 +17,7 @@ export default function Register() {
   const [password, setPassword] = useState("");
   const [branch, setBranch] = useState("");
   const [cgpa, setCgpa] = useState("");
+  const [backlogs, setBacklogs] = useState("0");
   const [error, setError] = useState("");
   const { login } = useAuth();
   const navigate = useNavigate();
@@ -24,16 +25,39 @@ export default function Register() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    const parsedCgpa = cgpa ? parseFloat(cgpa) : NaN;
+    const parsedBacklogs = backlogs ? parseInt(backlogs, 10) : 0;
+    if (password.length < 6) {
+      setError("Password must be at least 6 characters.");
+      return;
+    }
+    if (role === "student") {
+      if (!branch) {
+        setError("Branch is required for student accounts.");
+        return;
+      }
+      if (!Number.isFinite(parsedCgpa) || parsedCgpa < 0 || parsedCgpa > 4) {
+        setError("CGPA must be between 0.0 and 4.0.");
+        return;
+      }
+      if (!Number.isInteger(parsedBacklogs) || parsedBacklogs < 0) {
+        setError("Backlogs must be a non-negative whole number.");
+        return;
+      }
+    }
     try {
-      await registerUser({
+      const registration = await registerUser({
         name,
         email,
         password,
         role,
-        cgpa: cgpa ? parseFloat(cgpa) : undefined,
+        cgpa: role === "student" ? parsedCgpa : undefined,
         branch: branch || undefined,
-        backlogs: 0,
+        backlogs: role === "student" ? parsedBacklogs : undefined,
       });
+      if (registration.verificationToken) {
+        await verifyEmail(registration.verificationToken);
+      }
       const data = await loginUser(email, password);
       login(data.token, data.user);
       navigate("/dashboard");
@@ -52,7 +76,7 @@ export default function Register() {
           <span className="font-display text-xl font-bold">PlaceTrack</span>
         </div>
 
-        <div className="bg-card rounded-xl border border-border p-8 shadow-sm">
+        <div className="bg-card rounded-lg border border-border p-8 shadow-sm">
           <h2 className="font-display text-2xl font-bold mb-1">Create Account</h2>
           <p className="text-muted-foreground mb-6">Join the campus placement platform</p>
 
@@ -69,12 +93,13 @@ export default function Register() {
                 <Label>Role</Label>
                 <Select value={role} onValueChange={(v) => setRole(v as UserRole)}>
                   <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="student">Student</SelectItem>
-                    <SelectItem value="recruiter">Recruiter</SelectItem>
-                    <SelectItem value="officer">Placement Officer</SelectItem>
-                  </SelectContent>
-                </Select>
+                    <SelectContent>
+                      <SelectItem value="student">Student</SelectItem>
+                      <SelectItem value="recruiter">Recruiter</SelectItem>
+                      <SelectItem value="officer">Placement Officer</SelectItem>
+                      <SelectItem value="admin">College Administration</SelectItem>
+                    </SelectContent>
+                  </Select>
               </div>
             </div>
 
@@ -113,6 +138,10 @@ export default function Register() {
                     <BookOpen className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                     <Input type="number" step="0.1" min="0" max="4" placeholder="3.5" className="pl-10" value={cgpa} onChange={(e) => setCgpa(e.target.value)} />
                   </div>
+                </div>
+                <div>
+                  <Label>Backlogs</Label>
+                  <Input type="number" min="0" step="1" value={backlogs} onChange={(e) => setBacklogs(e.target.value)} />
                 </div>
               </div>
             )}

@@ -1,17 +1,19 @@
 const express = require("express");
 const router = express.Router();
 
-const Interview = require("../models/Interview");
+const authMiddleware = require("../middlewares/authMiddleware");
+const {
+  listInterviews,
+  createInterviewSlot,
+  bookInterviewSlot,
+  cancelInterviewSlot,
+  rescheduleInterviewSlot,
+} = require("../controllers/interviewController");
 
-router.post("/", async (req, res) => {
-  const interview = new Interview(req.body);
-  await interview.save();
-  res.json(interview);
-});
-
-router.get("/", async (req, res) => {
-  const interviews = await Interview.find().populate("applicationId");
-  res.json(interviews);
-});
+router.get("/", authMiddleware, listInterviews);
+router.post("/", authMiddleware, createInterviewSlot);
+router.patch("/:id/book", authMiddleware, bookInterviewSlot);
+router.patch("/:id/cancel", authMiddleware, cancelInterviewSlot);
+router.patch("/:id/reschedule", authMiddleware, rescheduleInterviewSlot);
 
 module.exports = router;

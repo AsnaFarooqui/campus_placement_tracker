@@ -1,16 +1,15 @@
 import DashboardLayout from '@/components/DashboardLayout';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import StatCard from '@/components/StatCard';
 import { useAuth } from '@/lib/auth-context';
-import { Briefcase, Clock3, CheckCircle2, Users, Award, Building2, DollarSign } from 'lucide-react';
+import { Briefcase, Clock3, CheckCircle2, Users, Award, Building2, DollarSign, Bell } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { getRecruiterDashboard, getMyApplications, getMyInterviews, getOfficerDashboard } from '@/lib/api.ts';
+import { getRecruiterDashboard, getMyApplications, getMyInterviews, getOfficerDashboard, getNotifications } from '@/lib/api.ts';
 import { useNavigate } from "react-router-dom";
 
 function StudentDashboard() {
   const navigate = useNavigate();
 
-  const queryClient = useQueryClient();
   const { data: applications = [] } = useQuery({
     queryKey: ["applications"],
     queryFn: getMyApplications,
@@ -20,9 +19,13 @@ function StudentDashboard() {
     queryKey: ["interviews"],
     queryFn: getMyInterviews,
   });
-  const activeApps = applications.filter((a) => !['Selected', 'Rejected'].includes(a.status)).length;
+  const activeApps = applications.filter((a) => !['Selected', 'Rejected', 'Withdrawn'].includes(a.status)).length;
   const upcomingInterviews = interviews.filter((i) => i.status === 'scheduled').length;
   const selected = applications.filter((a) => a.status === 'Selected').length;
+  const { data: notificationData } = useQuery({
+    queryKey: ["notifications"],
+    queryFn: getNotifications,
+  });
 
   return (
     <>
@@ -35,6 +38,36 @@ function StudentDashboard() {
           onClick={() => navigate("/applications?status=selected")} />
         <StatCard icon={Users} label="Interviews" value={upcomingInterviews} color="accent" 
           onClick={() => navigate("/interviews")} />
+      </div>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <div className="bg-card rounded-lg border border-border p-5">
+          <h2 className="text-sm font-semibold flex items-center gap-2 mb-3"><Bell className="w-4 h-4" /> Notifications</h2>
+          {(notificationData?.notifications.length || 0) > 0 ? (
+            <div className="space-y-2">
+              {notificationData?.notifications.slice(0, 4).map((item) => (
+                <div key={item._id} className="text-sm text-muted-foreground">
+                  <span className="font-medium text-foreground">{item.title}</span> - {item.message}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">No new notifications.</p>
+          )}
+        </div>
+        <div className="bg-card rounded-lg border border-border p-5">
+          <h2 className="text-sm font-semibold mb-3">Announcements</h2>
+          {(notificationData?.announcements.length || 0) > 0 ? (
+            <div className="space-y-2">
+              {notificationData?.announcements.slice(0, 4).map((item) => (
+                <div key={item._id} className="text-sm text-muted-foreground">
+                  <span className="font-medium text-foreground">{item.title}</span> - {item.message}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">No active announcements.</p>
+          )}
+        </div>
       </div>
     </>
   );
@@ -54,9 +87,9 @@ function OfficerDashboard() {
     <>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <StatCard icon={Users} label="Total Students" value={data.totalStudents} color="primary" />
-        <StatCard icon={Award} label="Students Placed" value={data.placedStudents} change={`${((data.placedStudents / data.totalStudents) * 100).toFixed(1)}%`} color="success" />
+        <StatCard icon={Award} label="Students Placed" value={data.placedStudents} change={`${data.placementPercentage}%`} color="success" />
         <StatCard icon={Building2} label="Companies" value={data.totalCompanies} color="secondary" />
-        <StatCard icon={DollarSign} label="Avg Package (LPA)" value={data.avgPackage} color="accent" />
+        <StatCard icon={DollarSign} label="Avg Package" value={data.avgPackage} color="accent" />
       </div>
     </>
   );
@@ -82,7 +115,7 @@ function RecruiterDashboard() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-card rounded-xl border border-border p-6">
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-card rounded-lg border border-border p-6">
           <h3 className="font-display text-lg font-semibold mb-4">Recent Job Posts</h3>
           <div className="space-y-3">
             {data.recentJobs.map((job) => (
@@ -97,7 +130,7 @@ function RecruiterDashboard() {
           </div>
         </motion.div>
 
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="bg-card rounded-xl border border-border p-6">
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="bg-card rounded-lg border border-border p-6">
           <h3 className="font-display text-lg font-semibold mb-4">Company-wise Results</h3>
           <div className="space-y-3">
             {data.companyBreakdown.map((company) => (
@@ -130,7 +163,7 @@ export default function Dashboard() {
         <h1 className="font-display text-2xl font-bold">Welcome back, {userName} 👋</h1>
         <p className="text-muted-foreground mt-1">Here's what's happening with your placements.</p>
       </div>
-      {role === 'officer' ? <OfficerDashboard /> : role === 'recruiter' ? <RecruiterDashboard /> : <StudentDashboard />}
+      {role === 'officer' || role === 'admin' ? <OfficerDashboard /> : role === 'recruiter' ? <RecruiterDashboard /> : <StudentDashboard />}
     </DashboardLayout>
   );
 }

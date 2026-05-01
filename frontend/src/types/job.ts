@@ -69,7 +69,24 @@ export interface RecruiterDashboardResponse {
 export interface OfficerDashboardResponse {
   totalStudents: number;
   placedStudents: number;
+  placementPercentage: number;
   totalCompanies: number;
   totalOffers: number;
   avgPackage: number;
+  highestPackage: number;
+  branchWise: Array<{
+    branch: string;
+    total: number;
+    placed: number;
+    percentage: number;
+  }>;
+  companyWise: Array<{
+    company: string;
+    offers: number;
+    avgPackage: number;
+  }>;
+  monthlyTrend: Array<{
+    month: string;
+    placements: number;
+  }>;
 }

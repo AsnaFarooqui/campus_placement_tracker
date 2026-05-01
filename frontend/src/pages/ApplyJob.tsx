@@ -3,15 +3,19 @@ import { useState } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { applyToJob } from "@/lib/api.ts";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 
 export default function ApplyJob() {
   const { jobId } = useParams();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const [resume, setResume] = useState("");
   const [coverLetter, setCoverLetter] = useState("");
+  const [error, setError] = useState("");
 
   const mutation = useMutation({
     mutationFn: (data: { jobId: string; resume: string; coverLetter: string }) =>
@@ -21,16 +25,23 @@ export default function ApplyJob() {
       }),
 
     onSuccess: () => {
-      alert("Application submitted");
+      toast.success("Application submitted");
+      queryClient.invalidateQueries({ queryKey: ["applications"] });
+      queryClient.invalidateQueries({ queryKey: ["jobs"] });
       navigate("/applications");
     },
 
     onError: (err: any) => {
-      alert(err.message);
+      toast.error(err.details?.join("\n") || err.message);
     },
   });
 
   const handleSubmit = () => {
+    setError("");
+    if (!resume.trim()) {
+      setError("Resume URL is required.");
+      return;
+    }
     mutation.mutate({
       jobId: jobId!,
       resume,
@@ -49,13 +60,16 @@ export default function ApplyJob() {
           onChange={(e) => setResume(e.target.value)}
         />
 
-        <Input
+        <Textarea
           placeholder="Cover Letter"
           value={coverLetter}
           onChange={(e) => setCoverLetter(e.target.value)}
         />
+        {error && <p className="text-sm text-destructive">{error}</p>}
 
-        <Button onClick={handleSubmit}>Submit Application</Button>
+        <Button onClick={handleSubmit} disabled={mutation.isPending}>
+          {mutation.isPending ? "Submitting..." : "Submit Application"}
+        </Button>
       </div>
     </DashboardLayout>
   );

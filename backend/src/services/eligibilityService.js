@@ -10,8 +10,10 @@ function getEligibilityResult(student, job) {
     reasons.push('Only students can apply');
   }
 
-  if (typeof student.cgpa !== 'number') {
+  if (typeof student.cgpa !== 'number' || Number.isNaN(student.cgpa)) {
     reasons.push('Student CGPA is missing');
+  } else if (student.cgpa < 0 || student.cgpa > 4) {
+    reasons.push('Student CGPA must be between 0.0 and 4.0');
   } else if (student.cgpa < job.minCGPA) {
     reasons.push(`Minimum CGPA required is ${job.minCGPA}`);
   }
@@ -23,7 +25,9 @@ function getEligibilityResult(student, job) {
   }
 
   if (Array.isArray(job.allowedBranches) && job.allowedBranches.length > 0) {
-    if (!student.branch || !job.allowedBranches.includes(student.branch)) {
+    const allowedBranches = job.allowedBranches.map((branch) => String(branch).toLowerCase());
+    const studentBranch = String(student.branch || '').toLowerCase();
+    if (!studentBranch || !allowedBranches.includes(studentBranch)) {
       reasons.push('Your branch is not eligible for this job');
     }
   }

@@ -62,8 +62,8 @@ export interface InterviewSlot {
 
 export const currentStudent: StudentProfile = {
   id: "s1",
-  name: "Arjun Mehta",
-  email: "arjun.mehta@university.edu",
+  name: "Ayesha Khan",
+  email: "ayesha.khan@uni.edu.pk",
   role: "student",
   cgpa: 3.6,
   branch: "Computer Science",
@@ -73,47 +73,47 @@ export const currentStudent: StudentProfile = {
 
 export const mockJobs: Job[] = [
   {
-    id: "j1", title: "Software Engineer", company: "Google", description: "Build scalable distributed systems.",
+    id: "j1", title: "Software Engineer", company: "Systems Limited", description: "Build scalable enterprise applications for Karachi-based clients.",
     salaryMin: 120000, salaryMax: 180000, minCGPA: 3.5, allowedBranches: ["Computer Science", "Information Technology"],
-    maxBacklogs: 0, deadline: "2026-04-15", postedDate: "2026-03-01", status: "open", applicants: 42,
-    location: "Bangalore", employmentType: "full-time",
+    maxBacklogs: 0, deadline: "2026-06-15", postedDate: "2026-03-01", status: "open", applicants: 42,
+    location: "Karachi - PECHS", employmentType: "full-time",
   },
   {
-    id: "j2", title: "Data Analyst Intern", company: "Microsoft", description: "Analyze large datasets to drive product decisions.",
+    id: "j2", title: "Data Analyst Intern", company: "10Pearls", description: "Analyze product and customer datasets for local technology teams.",
     salaryMin: 40000, salaryMax: 60000, minCGPA: 3.0, allowedBranches: ["Computer Science", "Mathematics", "Statistics"],
-    maxBacklogs: 1, deadline: "2026-04-20", postedDate: "2026-03-05", status: "open", applicants: 78,
-    location: "Hyderabad", employmentType: "internship",
+    maxBacklogs: 1, deadline: "2026-06-20", postedDate: "2026-03-05", status: "open", applicants: 78,
+    location: "Karachi - Shahrah-e-Faisal", employmentType: "internship",
   },
   {
-    id: "j3", title: "Product Manager", company: "Amazon", description: "Lead product strategy for AWS services.",
+    id: "j3", title: "Product Manager", company: "Habib Bank Limited", description: "Lead digital product strategy and execution for banking services.",
     salaryMin: 140000, salaryMax: 200000, minCGPA: 3.2, allowedBranches: ["Computer Science", "Electronics", "Mechanical"],
-    maxBacklogs: 0, deadline: "2026-03-25", postedDate: "2026-02-28", status: "open", applicants: 35,
-    location: "Mumbai", employmentType: "full-time",
+    maxBacklogs: 0, deadline: "2026-06-25", postedDate: "2026-02-28", status: "open", applicants: 35,
+    location: "Karachi - HBL Plaza", employmentType: "full-time",
   },
   {
-    id: "j4", title: "Frontend Developer", company: "Flipkart", description: "Build beautiful user interfaces for e-commerce.",
+    id: "j4", title: "Frontend Developer", company: "Folio3", description: "Build responsive user interfaces for web and commerce platforms.",
     salaryMin: 80000, salaryMax: 120000, minCGPA: 3.0, allowedBranches: ["Computer Science", "Information Technology"],
-    maxBacklogs: 2, deadline: "2026-04-30", postedDate: "2026-03-10", status: "open", applicants: 56,
-    location: "Bangalore", employmentType: "full-time",
+    maxBacklogs: 2, deadline: "2026-06-30", postedDate: "2026-03-10", status: "open", applicants: 56,
+    location: "Karachi - Korangi Creek", employmentType: "full-time",
   },
   {
-    id: "j5", title: "ML Engineer", company: "Tesla", description: "Work on autonomous driving ML models.",
+    id: "j5", title: "ML Engineer", company: "Careem", description: "Work on machine learning models for mobility and marketplace systems.",
     salaryMin: 150000, salaryMax: 220000, minCGPA: 3.7, allowedBranches: ["Computer Science", "Artificial Intelligence"],
-    maxBacklogs: 0, deadline: "2026-04-10", postedDate: "2026-03-08", status: "open", applicants: 23,
-    location: "Remote", employmentType: "full-time",
+    maxBacklogs: 0, deadline: "2026-06-10", postedDate: "2026-03-08", status: "open", applicants: 23,
+    location: "Karachi - DHA", employmentType: "full-time",
   },
 ];
 
 export const mockApplications: Application[] = [
-  { id: "a1", jobId: "j1", jobTitle: "Software Engineer", company: "Google", status: "shortlisted", appliedDate: "2026-03-02", lastUpdated: "2026-03-10" },
-  { id: "a2", jobId: "j2", jobTitle: "Data Analyst Intern", company: "Microsoft", status: "interview", appliedDate: "2026-03-06", lastUpdated: "2026-03-12", interviewDate: "2026-03-20" },
-  { id: "a3", jobId: "j4", jobTitle: "Frontend Developer", company: "Flipkart", status: "applied", appliedDate: "2026-03-11", lastUpdated: "2026-03-11" },
+  { id: "a1", jobId: "j1", jobTitle: "Software Engineer", company: "Systems Limited", status: "shortlisted", appliedDate: "2026-03-02", lastUpdated: "2026-03-10" },
+  { id: "a2", jobId: "j2", jobTitle: "Data Analyst Intern", company: "10Pearls", status: "interview", appliedDate: "2026-03-06", lastUpdated: "2026-03-12", interviewDate: "2026-03-20" },
+  { id: "a3", jobId: "j4", jobTitle: "Frontend Developer", company: "Folio3", status: "applied", appliedDate: "2026-03-11", lastUpdated: "2026-03-11" },
 ];
 
 export const mockInterviews: InterviewSlot[] = [
-  { id: "i1", jobTitle: "Data Analyst Intern", company: "Microsoft", date: "2026-03-20", time: "10:00 AM", type: "technical", status: "scheduled", candidate: "Arjun Mehta" },
-  { id: "i2", jobTitle: "Software Engineer", company: "Google", date: "2026-03-22", time: "2:00 PM", type: "aptitude", status: "scheduled", candidate: "Arjun Mehta" },
-  { id: "i3", jobTitle: "Software Engineer", company: "Google", date: "2026-03-25", time: "11:00 AM", type: "technical", status: "scheduled" },
+  { id: "i1", jobTitle: "Data Analyst Intern", company: "10Pearls", date: "2026-03-20", time: "10:00 AM", type: "technical", status: "scheduled", candidate: "Ayesha Khan" },
+  { id: "i2", jobTitle: "Software Engineer", company: "Systems Limited", date: "2026-03-22", time: "2:00 PM", type: "aptitude", status: "scheduled", candidate: "Ayesha Khan" },
+  { id: "i3", jobTitle: "Software Engineer", company: "Systems Limited", date: "2026-03-25", time: "11:00 AM", type: "technical", status: "scheduled" },
 ];
 
 export const placementStats = {
@@ -131,12 +131,12 @@ export const placementStats = {
     { branch: "Information Technology", total: 90, placed: 54, percentage: 60.0 },
   ],
   companyWise: [
-    { company: "Google", offers: 12, avgPackage: 35 },
-    { company: "Microsoft", offers: 18, avgPackage: 28 },
-    { company: "Amazon", offers: 22, avgPackage: 25 },
-    { company: "Flipkart", offers: 15, avgPackage: 18 },
-    { company: "TCS", offers: 45, avgPackage: 8 },
-    { company: "Infosys", offers: 38, avgPackage: 7.5 },
+    { company: "Systems Limited", offers: 12, avgPackage: 35 },
+    { company: "10Pearls", offers: 18, avgPackage: 28 },
+    { company: "Habib Bank Limited", offers: 22, avgPackage: 25 },
+    { company: "Folio3", offers: 15, avgPackage: 18 },
+    { company: "Meezan Bank", offers: 45, avgPackage: 8 },
+    { company: "TPS Worldwide", offers: 38, avgPackage: 7.5 },
   ],
   monthlyTrend: [
     { month: "Aug", placements: 12 },

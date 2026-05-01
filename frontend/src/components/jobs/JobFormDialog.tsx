@@ -13,6 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 const branchOptions = [
   'Computer Science',
@@ -51,6 +52,7 @@ interface Props {
 export default function JobFormDialog({ triggerLabel, onSubmit, initialJob, open: controlledOpen, onOpenChange }: Props) {
   const [internalOpen, setInternalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState<string[]>([]);
   const [form, setForm] = useState<JobFormValues>(defaultForm);
 
   const open = controlledOpen ?? internalOpen;
@@ -58,6 +60,7 @@ export default function JobFormDialog({ triggerLabel, onSubmit, initialJob, open
   const mode = useMemo(() => (initialJob ? 'edit' : 'create'), [initialJob]);
 
   useEffect(() => {
+    setErrors([]);
     if (initialJob) {
       setForm({
         title: initialJob.title,
@@ -93,6 +96,24 @@ export default function JobFormDialog({ triggerLabel, onSubmit, initialJob, open
   };
 
   const handleSubmit = async () => {
+    const validationErrors: string[] = [];
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const deadline = form.deadline ? new Date(`${form.deadline}T00:00:00`) : null;
+
+    if (!form.title.trim()) validationErrors.push('Job title is required.');
+    if (!form.company.trim()) validationErrors.push('Company is required.');
+    if (!form.description.trim()) validationErrors.push('Description is required.');
+    if (form.salaryMin < 0 || form.salaryMax < 0) validationErrors.push('Salary values must be non-negative.');
+    if (form.salaryMin > form.salaryMax) validationErrors.push('Maximum salary must be greater than or equal to minimum salary.');
+    if (form.minCGPA < 0 || form.minCGPA > 4) validationErrors.push('Minimum CGPA must be between 0.0 and 4.0.');
+    if (!Number.isInteger(form.maxBacklogs) || form.maxBacklogs < 0) validationErrors.push('Maximum backlogs must be a non-negative whole number.');
+    if (!form.allowedBranches.length) validationErrors.push('Select at least one eligible branch.');
+    if (!deadline || deadline < today) validationErrors.push('Deadline must be today or a future date.');
+
+    setErrors(validationErrors);
+    if (validationErrors.length) return;
+
     setLoading(true);
     try {
       await onSubmit(form);
@@ -117,6 +138,16 @@ export default function JobFormDialog({ triggerLabel, onSubmit, initialJob, open
           </DialogDescription>
         </DialogHeader>
 
+        {errors.length > 0 && (
+          <Alert variant="destructive">
+            <AlertDescription>
+              {errors.map((error) => (
+                <div key={error}>{error}</div>
+              ))}
+            </AlertDescription>
+          </Alert>
+        )}
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2"><Label>Job title</Label><Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></div>
           <div className="space-y-2"><Label>Company</Label><Input value={form.company} onChange={(e) => setForm({ ...form, company: e.target.value })} /></div>
@@ -127,7 +158,7 @@ export default function JobFormDialog({ triggerLabel, onSubmit, initialJob, open
           <div className="space-y-2"><Label>Salary max</Label><Input type="number" value={form.salaryMax} onChange={(e) => setForm({ ...form, salaryMax: Number(e.target.value) })} /></div>
           <div className="space-y-2"><Label>Minimum CGPA</Label><Input type="number" min="0" max="4" step="0.01" value={form.minCGPA} onChange={(e) => setForm({ ...form, minCGPA: Number(e.target.value) })} /></div>
           <div className="space-y-2"><Label>Maximum backlogs</Label><Input type="number" min="0" value={form.maxBacklogs} onChange={(e) => setForm({ ...form, maxBacklogs: Number(e.target.value) })} /></div>
-          <div className="space-y-2"><Label>Deadline</Label><Input type="date" value={form.deadline} onChange={(e) => setForm({ ...form, deadline: e.target.value })} /></div>
+          <div className="space-y-2"><Label>Deadline</Label><Input type="date" min={new Date().toISOString().slice(0, 10)} value={form.deadline} onChange={(e) => setForm({ ...form, deadline: e.target.value })} /></div>
           <div className="space-y-2"><Label>Status</Label><Select value={form.status} onValueChange={(value: 'draft' | 'open' | 'closed') => setForm({ ...form, status: value })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="draft">Draft</SelectItem><SelectItem value="open">Open</SelectItem><SelectItem value="closed">Closed</SelectItem></SelectContent></Select></div>
           <div className="space-y-2 md:col-span-2"><Label>Allowed branches</Label><div className="flex flex-wrap gap-2">{branchOptions.map((branch) => (<Button key={branch} type="button" variant={form.allowedBranches.includes(branch) ? 'default' : 'outline'} onClick={() => toggleBranch(branch)} className="text-xs">{branch}</Button>))}</div></div>
         </div>

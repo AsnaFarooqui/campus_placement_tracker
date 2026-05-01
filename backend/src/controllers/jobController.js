@@ -4,6 +4,7 @@ const User = require('../models/User');
 const asyncHandler = require('../utils/asyncHandler');
 const { HttpError } = require('../utils/httpErrors');
 const { getEligibilityResult } = require('../services/eligibilityService');
+const { validateJobPayload } = require('../services/validationService');
 
 const buildJobFilters = (query, currentUser) => {
   const filters = {};
@@ -32,6 +33,11 @@ const buildJobFilters = (query, currentUser) => {
 };
 
 exports.createJob = asyncHandler(async (req, res) => {
+  const validationErrors = validateJobPayload(req.body);
+  if (validationErrors.length) {
+    throw new HttpError(400, 'Job validation failed', validationErrors);
+  }
+
   const payload = {
     ...req.body,
     createdBy: req.user.id,
@@ -86,6 +92,12 @@ exports.updateJob = asyncHandler(async (req, res) => {
 
   if (req.user.role === 'recruiter' && String(job.createdBy) !== req.user.id) {
     throw new HttpError(403, 'You can only edit your own jobs');
+  }
+
+  const mergedPayload = { ...job.toObject(), ...req.body };
+  const validationErrors = validateJobPayload(mergedPayload);
+  if (validationErrors.length) {
+    throw new HttpError(400, 'Job validation failed', validationErrors);
   }
 
   Object.assign(job, req.body);
@@ -168,7 +180,7 @@ exports.getRecruiterDashboard = asyncHandler(async (req, res) => {
     closedJobs: jobs.filter((job) => job.status === 'closed').length,
     totalApplications: applications.length,
     shortlisted: applications.filter((app) => app.status === 'Shortlisted').length,
-    selected: applications.filter((app) => app.status === 'selected').length,
+    selected: applications.filter((app) => app.status === 'Selected').length,
     rejected: applications.filter((app) => app.status === 'Rejected').length,
   };
 
@@ -177,7 +189,7 @@ exports.getRecruiterDashboard = asyncHandler(async (req, res) => {
     const company = application.jobId?.company || 'Unknown';
     const entry = companyBreakdownMap.get(company) || { company, applications: 0, selected: 0 };
     entry.applications += 1;
-    if (application.status === 'selected') entry.selected += 1;
+    if (application.status === 'Selected') entry.selected += 1;
     companyBreakdownMap.set(company, entry);
   }
 

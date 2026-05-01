@@ -67,6 +67,13 @@ const jobSchema = new mongoose.Schema(
     deadline: {
       type: Date,
       required: true,
+      validate: {
+        validator(value) {
+          if (this.status === 'closed') return true;
+          return value && value.getTime() > Date.now();
+        },
+        message: 'Application deadline must be in the future',
+      },
     },
     status: {
       type: String,

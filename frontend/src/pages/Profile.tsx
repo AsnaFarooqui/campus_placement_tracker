@@ -11,7 +11,7 @@ import { updateProfile } from "@/lib/api.ts";
 import DashboardLayout from "@/components/DashboardLayout";
 
 export default function Profile() {
-  const { user, isAuthenticated, login, token } = useAuth();
+  const { user, isAuthenticated, login, token, setUnsavedChanges } = useAuth();
   const navigate = useNavigate();
 
   const [editing, setEditing] = useState(false);
@@ -38,16 +38,37 @@ export default function Profile() {
   const handleSave = async () => {
     setError("");
     setSuccess("");
+    const parsedCgpa = cgpa ? parseFloat(cgpa) : undefined;
+    const parsedBacklogs = backlogs ? parseInt(backlogs, 10) : 0;
+    if (!name.trim()) {
+      setError("Full name is required.");
+      return;
+    }
+    if (user.role === "student") {
+      if (!branch) {
+        setError("Branch is required.");
+        return;
+      }
+      if (parsedCgpa === undefined || parsedCgpa < 0 || parsedCgpa > 4) {
+        setError("CGPA must be between 0.0 and 4.0.");
+        return;
+      }
+      if (!Number.isInteger(parsedBacklogs) || parsedBacklogs < 0) {
+        setError("Backlogs must be a non-negative whole number.");
+        return;
+      }
+    }
     try {
       const updated = await updateProfile({
         name,
-        cgpa: cgpa ? parseFloat(cgpa) : undefined,
+        cgpa: parsedCgpa,
         branch: branch || undefined,
-        backlogs: backlogs ? parseInt(backlogs) : 0,
+        backlogs: parsedBacklogs,
       });
       login(token!, updated);
       setSuccess("Profile updated successfully!");
       setEditing(false);
+      setUnsavedChanges(false);
     } catch (err: any) {
       setError(err.message);
     }
@@ -61,6 +82,7 @@ export default function Profile() {
       setBacklogs(user.backlogs?.toString() || "0");
     }
     setEditing(false);
+    setUnsavedChanges(false);
     setError("");
   };
 
@@ -78,13 +100,13 @@ export default function Profile() {
               <p className="text-muted-foreground text-sm mt-1">View and update your details</p>
             </div>
             {!editing && (
-              <Button variant="outline" onClick={() => setEditing(true)} className="flex items-center gap-2">
+              <Button variant="outline" onClick={() => { setEditing(true); setUnsavedChanges(true); }} className="flex items-center gap-2">
                 <Pencil className="w-4 h-4" /> Edit Profile
               </Button>
             )}
           </div>
 
-          <div className="bg-card border border-border rounded-xl p-6 shadow-sm space-y-6">
+          <div className="bg-card border border-border rounded-lg p-6 shadow-sm space-y-6">
 
             {/* Avatar + role badge */}
             <div className="flex items-center gap-4">
@@ -110,7 +132,7 @@ export default function Profile() {
                   <User className="w-4 h-4" /> Full Name
                 </Label>
                 {editing ? (
-                  <Input value={name} onChange={(e) => setName(e.target.value)} />
+                  <Input value={name} onChange={(e) => { setName(e.target.value); setUnsavedChanges(true); }} />
                 ) : (
                   <p className="text-sm text-muted-foreground pl-1">{user.name || "—"}</p>
                 )}
@@ -133,7 +155,7 @@ export default function Profile() {
                         <GraduationCap className="w-4 h-4" /> Branch
                       </Label>
                       {editing ? (
-                        <Select value={branch} onValueChange={setBranch}>
+                        <Select value={branch} onValueChange={(value) => { setBranch(value); setUnsavedChanges(true); }}>
                           <SelectTrigger><SelectValue placeholder="Select branch" /></SelectTrigger>
                           <SelectContent>
                             {["Computer Science", "Electronics", "Mechanical", "Civil", "Information Technology"].map((b) => (
@@ -151,7 +173,7 @@ export default function Profile() {
                         <BookOpen className="w-4 h-4" /> CGPA
                       </Label>
                       {editing ? (
-                        <Input type="number" step="0.1" min="0" max="4" value={cgpa} onChange={(e) => setCgpa(e.target.value)} />
+                        <Input type="number" step="0.1" min="0" max="4" value={cgpa} onChange={(e) => { setCgpa(e.target.value); setUnsavedChanges(true); }} />
                       ) : (
                         <p className="text-sm text-muted-foreground pl-1">{user.cgpa ?? "—"}</p>
                       )}
@@ -161,7 +183,7 @@ export default function Profile() {
                   <div>
                     <Label className="mb-1.5 block">Backlogs</Label>
                     {editing ? (
-                      <Input type="number" min="0" value={backlogs} onChange={(e) => setBacklogs(e.target.value)} />
+                      <Input type="number" min="0" value={backlogs} onChange={(e) => { setBacklogs(e.target.value); setUnsavedChanges(true); }} />
                     ) : (
                       <p className="text-sm text-muted-foreground pl-1">{user.backlogs ?? 0}</p>
                     )}

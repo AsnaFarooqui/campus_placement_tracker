@@ -1,7 +1,7 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react";
 import { getProfile } from "./api.ts";
 
-export type UserRole = 'student' | 'recruiter' | 'officer';
+export type UserRole = 'student' | 'recruiter' | 'officer' | 'admin';
 
 interface UserInfo {
   id: string;
@@ -21,6 +21,8 @@ interface AuthState {
   userName: string;
   login: (token: string, user: UserInfo) => void;
   logout: () => void;
+  unsavedChanges: boolean;
+  setUnsavedChanges: (dirty: boolean) => void;
 }
 
 const AuthContext = createContext<AuthState | null>(null);
@@ -28,6 +30,7 @@ const AuthContext = createContext<AuthState | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
   const [user, setUser] = useState<UserInfo | null>(null);
+  const [unsavedChanges, setUnsavedChanges] = useState(false);
 
   useEffect(() => {
     if (token) {
@@ -57,11 +60,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(userInfo);
   };
 
-  const logout = () => {
+  const logout = useCallback(() => {
     localStorage.removeItem('token');
+    localStorage.removeItem('lastActivityAt');
     setToken(null);
     setUser(null);
-  };
+    setUnsavedChanges(false);
+  }, []);
+
+  useEffect(() => {
+    if (!token) return;
+
+    const timeoutMs = 30 * 60 * 1000;
+    const recordActivity = () => {
+      localStorage.setItem('lastActivityAt', String(Date.now()));
+    };
+
+    if (!localStorage.getItem('lastActivityAt')) {
+      recordActivity();
+    }
+
+    const events = ['click', 'keydown', 'mousemove', 'scroll', 'touchstart'];
+    events.forEach((event) => window.addEventListener(event, recordActivity, { passive: true }));
+
+    const interval = window.setInterval(() => {
+      const lastActivity = Number(localStorage.getItem('lastActivityAt') || Date.now());
+      if (Date.now() - lastActivity >= timeoutMs) {
+        logout();
+      }
+    }, 60 * 1000);
+
+    return () => {
+      events.forEach((event) => window.removeEventListener(event, recordActivity));
+      window.clearInterval(interval);
+    };
+  }, [logout, token]);
 
   return (
     <AuthContext.Provider
@@ -73,6 +106,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         userName: user?.name || 'User',
         login,
         logout,
+        unsavedChanges,
+        setUnsavedChanges,
       }}
     >
       {children}

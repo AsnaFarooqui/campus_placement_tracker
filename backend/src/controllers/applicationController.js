@@ -1,162 +1,201 @@
 const mongoose = require("mongoose");
+
 const Application = require("../models/Application");
 const Job = require("../models/Job");
 const User = require("../models/User");
+const asyncHandler = require("../utils/asyncHandler");
+const { HttpError } = require("../utils/httpErrors");
+const { getEligibilityResult } = require("../services/eligibilityService");
+const { validateStatusTransition } = require("../services/statusWorkflowService");
+const { notifyStatusChange } = require("../services/notificationService");
 
-// 🔹 Apply to job (ONLY STUDENTS)
-exports.applyToJob = async (req, res) => {
-  try {
-    if (req.user.role !== "student") {
-      return res.status(403).json({ message: "Only students can apply" });
-    }
-
-    const { jobId } = req.body;
-    const studentId = req.user.id;
-
-    if (!jobId) {
-      return res.status(400).json({ message: "jobId is required" });
-    }
-
-    if (!mongoose.Types.ObjectId.isValid(jobId)) {
-      return res.status(400).json({ message: "Invalid jobId" });
-    }
-
-    const job = await Job.findById(jobId);
-    if (!job) return res.status(404).json({ message: "Job not found" });
-
-    // ❗ Duplicate check
-    const existing = await Application.findOne({ studentId, jobId });
-    if (existing) {
-      return res.status(400).json({ message: "Already applied" });
-    }
-
-    const student = await User.findById(studentId);
-
-    // ❗ Eligibility check
-    if (
-      student.cgpa < job.minCGPA ||
-      !job.allowedBranches.includes(student.branch) ||
-      student.backlogs > job.maxBacklogs
-    ) {
-      return res.status(400).json({ message: "Not eligible for this job" });
-    }
-
-    const application = await Application.create({
-      jobId,
-      studentId,
-      status: "Applied",
-      statusHistory: [
-        { status: "Applied", note: "Application submitted" }
-      ],
-    });
-
-    // update applicant count
-    job.applicants += 1;
-    await job.save();
-
-    res.status(201).json(application);
-
-  } catch (error) {
-    res.status(500).json({ error: error.message });
+async function assertJobOwnership(job, user) {
+  if (!job) throw new HttpError(404, "Job not found");
+  if (user.role === "recruiter" && String(job.createdBy) !== user.id) {
+    throw new HttpError(403, "You can only manage applicants for your own jobs");
   }
-};
+}
 
+function formatApplication(app) {
+  const job = app.jobId || {};
+  const student = app.studentId || {};
+  return {
+    _id: app._id,
+    id: app._id,
+    jobId: job._id || app.jobId,
+    jobTitle: job.title || "Unknown Job",
+    company: job.company || "Unknown Company",
+    deadline: job.deadline,
+    studentId: student._id || app.studentId,
+    studentName: student.name,
+    studentEmail: student.email,
+    studentCgpa: student.cgpa,
+    studentBranch: student.branch,
+    status: app.status,
+    statusHistory: app.statusHistory,
+    appliedDate: app.appliedAt,
+    lastUpdated: app.updatedAt,
+    resume: app.resume,
+    coverLetter: app.coverLetter,
+    withdrawnAt: app.withdrawnAt,
+  };
+}
 
-
-// 🔹 Get MY applications (ONLY STUDENTS)
-exports.getMyApplications = async (req, res) => {
-  try {
-    if (req.user.role !== "student") {
-      return res.status(403).json({ message: "Access denied" });
-    }
-
-    const applications = await Application.find({
-      studentId: req.user.id
-    })
-      .populate("jobId", "title company")
-      .sort({ createdAt: -1 });
-
-    const formatted = applications.map(app => ({
-      _id: app._id,
-      jobId: app.jobId?._id,
-      jobTitle: app.jobId?.title || "Unknown Job",
-      company: app.jobId?.company || "Unknown Company",
-      status: app.status,
-      appliedDate: app.appliedAt,
-      lastUpdated: app.updatedAt,
-    }));
-
-    res.json(formatted);
-
-  } catch (error) {
-    console.error("GET MY APPLICATIONS ERROR:", error); // 👈 ADD THIS
-    res.status(500).json({ error: error.message });
+exports.applyToJob = asyncHandler(async (req, res) => {
+  if (req.user.role !== "student") {
+    throw new HttpError(403, "Only students can apply");
   }
-};
 
+  const { jobId, resume, coverLetter } = req.body;
+  const studentId = req.user.id;
 
-// 🔹 Get applications for a job (ONLY RECRUITERS)
-exports.getJobApplications = async (req, res) => {
-  try {
-    if (req.user.role !== "recruiter") {
-      return res.status(403).json({ message: "Only recruiters can view applicants" });
-    }
-
-    const { jobId } = req.params;
-
-    const applications = await Application.find({ jobId })
-      .populate("studentId", "name email cgpa branch");
-
-    res.json(applications);
-
-  } catch (error) {
-    res.status(500).json({ error: error.message });
+  if (!jobId || !mongoose.Types.ObjectId.isValid(jobId)) {
+    throw new HttpError(400, "A valid jobId is required");
   }
-};
 
+  const job = await Job.findById(jobId);
+  if (!job) throw new HttpError(404, "Job not found");
 
+  if (job.status !== "open") {
+    throw new HttpError(400, "This job is not open for applications");
+  }
 
-// 🔹 Update application status (ONLY RECRUITERS)
-exports.updateStatus = async (req, res) => {
-  try {
-    if (req.user.role !== "recruiter") {
-      return res.status(403).json({ message: "Only recruiters can update status" });
-    }
+  if (new Date(job.deadline) < new Date()) {
+    throw new HttpError(400, "Application deadline has passed");
+  }
 
-    const { id } = req.params;
-    const { status, note } = req.body;
+  const existing = await Application.findOne({ studentId, jobId });
+  if (existing) {
+    throw new HttpError(409, "You have already applied to this job");
+  }
 
-    const validStatuses = [
-      "Applied",
-      "Shortlisted",
-      "Interview Scheduled",
-      "Selected",
-      "Rejected"
-    ];
+  const student = await User.findById(studentId);
+  const eligibility = getEligibilityResult(student, job);
+  if (!eligibility.eligible) {
+    throw new HttpError(400, "You are not eligible for this job", eligibility.reasons);
+  }
 
-    if (!validStatuses.includes(status)) {
-      return res.status(400).json({ message: "Invalid status value" });
-    }
+  const application = await Application.create({
+    jobId,
+    studentId,
+    resume,
+    coverLetter,
+    status: "Applied",
+    statusHistory: [{ status: "Applied", changedBy: studentId, note: "Application submitted" }],
+  });
 
-    const application = await Application.findById(id);
+  res.status(201).json(application);
+});
 
-    if (!application) {
-      return res.status(404).json({ message: "Application not found" });
-    }
+exports.getApplications = asyncHandler(async (req, res) => {
+  let filters = {};
 
+  if (req.user.role === "student") {
+    filters.studentId = req.user.id;
+  } else if (req.user.role === "recruiter") {
+    const jobs = await Job.find({ createdBy: req.user.id }).select("_id");
+    filters.jobId = { $in: jobs.map((job) => job._id) };
+  }
+
+  const applications = await Application.find(filters)
+    .populate("jobId", "title company deadline createdBy")
+    .populate("studentId", "name email cgpa branch backlogs")
+    .sort({ createdAt: -1 });
+
+  res.json(applications.map(formatApplication));
+});
+
+exports.getMyApplications = asyncHandler(async (req, res) => {
+  if (req.user.role !== "student") {
+    throw new HttpError(403, "Only students can access this application list");
+  }
+
+  const applications = await Application.find({ studentId: req.user.id })
+    .populate("jobId", "title company deadline")
+    .sort({ createdAt: -1 });
+
+  res.json(applications.map(formatApplication));
+});
+
+exports.getJobApplications = asyncHandler(async (req, res) => {
+  if (!["recruiter", "officer", "admin"].includes(req.user.role)) {
+    throw new HttpError(403, "Only recruiters, officers, or admins can view applicants");
+  }
+
+  const { jobId } = req.params;
+  const job = await Job.findById(jobId);
+  await assertJobOwnership(job, req.user);
+
+  const applications = await Application.find({ jobId })
+    .populate("studentId", "name email cgpa branch backlogs")
+    .populate("jobId", "title company deadline")
+    .sort({ createdAt: -1 });
+
+  res.json(applications.map(formatApplication));
+});
+
+exports.updateStatus = asyncHandler(async (req, res) => {
+  if (!["recruiter", "officer", "admin"].includes(req.user.role)) {
+    throw new HttpError(403, "Only recruiters, officers, or admins can update status");
+  }
+
+  const { id } = req.params;
+  const { status, note } = req.body;
+
+  const application = await Application.findById(id).populate("jobId", "title company createdBy");
+  if (!application) throw new HttpError(404, "Application not found");
+
+  await assertJobOwnership(application.jobId, req.user);
+
+  const transition = validateStatusTransition(application.status, status);
+  if (!transition.valid) {
+    throw new HttpError(400, transition.message);
+  }
+
+  if (application.status !== status) {
     application.status = status;
-
-    // 🔥 update history
     application.statusHistory.push({
       status,
-      note: note || ""
+      changedBy: req.user.id,
+      note: note || "",
     });
 
     await application.save();
-
-    res.json(application);
-
-  } catch (error) {
-    res.status(500).json({ error: error.message });
+    await notifyStatusChange(application, application.jobId, status);
   }
-};
+
+  res.json(application);
+});
+
+exports.withdrawApplication = asyncHandler(async (req, res) => {
+  if (req.user.role !== "student") {
+    throw new HttpError(403, "Only students can withdraw applications");
+  }
+
+  const application = await Application.findById(req.params.id).populate("jobId", "deadline title company");
+  if (!application) throw new HttpError(404, "Application not found");
+
+  if (String(application.studentId) !== req.user.id) {
+    throw new HttpError(403, "You can only withdraw your own applications");
+  }
+
+  if (new Date(application.jobId.deadline) < new Date()) {
+    throw new HttpError(400, "Applications can only be withdrawn before the deadline");
+  }
+
+  const transition = validateStatusTransition(application.status, "Withdrawn");
+  if (!transition.valid) {
+    throw new HttpError(400, transition.message);
+  }
+
+  application.status = "Withdrawn";
+  application.withdrawnAt = new Date();
+  application.statusHistory.push({
+    status: "Withdrawn",
+    changedBy: req.user.id,
+    note: "Application withdrawn by student",
+  });
+
+  await application.save();
+  res.json(application);
+});

@@ -7,12 +7,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/lib/auth-context";
 import { loginUser } from "@/lib/api.ts";
-import type { UserRole } from "@/lib/mock-data";
+import type { UserRole } from "@/lib/auth-context";
 
 const roles: { value: UserRole; label: string; desc: string }[] = [
   { value: "student", label: "Student", desc: "Apply for placements" },
   { value: "recruiter", label: "Recruiter", desc: "Post jobs & hire" },
   { value: "officer", label: "Placement Officer", desc: "Manage drives" },
+  { value: "admin", label: "College Admin", desc: "Institution reports" },
 ];
 
 export default function Login() {
@@ -29,6 +30,10 @@ const handleSubmit = async (e: React.FormEvent) => {
   setError("");
   try {
     const data = await loginUser(email, password);
+    if (data.user.role !== selectedRole) {
+      setError(`This account is registered as ${data.user.role}. Select the matching role to continue.`);
+      return;
+    }
     login(data.token, data.user);
     navigate("/dashboard");
   } catch (err: any) {
@@ -49,7 +54,7 @@ const handleSubmit = async (e: React.FormEvent) => {
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}
           className="relative z-10 text-primary-foreground max-w-lg">
           <div className="flex items-center gap-3 mb-8">
-            <div className="w-12 h-12 rounded-xl bg-secondary flex items-center justify-center">
+            <div className="w-12 h-12 rounded-lg bg-secondary flex items-center justify-center">
               <GraduationCap className="w-7 h-7 text-secondary-foreground" />
             </div>
             <span className="font-display text-2xl font-bold">PlaceTrack</span>
@@ -86,7 +91,7 @@ const handleSubmit = async (e: React.FormEvent) => {
           <p className="text-muted-foreground mb-8">Sign in to continue to your dashboard</p>
 
           {/* Role selector */}
-          <div className="flex gap-2 mb-6">
+          <div className="grid grid-cols-2 gap-2 mb-6">
             {roles.map((r) => (
               <button key={r.value} onClick={() => setSelectedRole(r.value)}
                 className={`flex-1 py-3 px-3 rounded-lg text-sm font-medium transition-all border ${
