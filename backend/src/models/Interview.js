@@ -1,5 +1,64 @@
 const mongoose = require("mongoose");
 
+const rescheduleRequestSchema = new mongoose.Schema(
+  {
+    requestedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
+    startAt: {
+      type: Date,
+      required: true,
+    },
+    endAt: {
+      type: Date,
+      required: true,
+      validate: {
+        validator(value) {
+          return this.startAt && value > this.startAt;
+        },
+        message: "Requested interview end time must be after start time",
+      },
+    },
+    durationMinutes: {
+      type: Number,
+      min: 15,
+      max: 240,
+      required: true,
+    },
+    reason: {
+      type: String,
+      trim: true,
+      maxlength: 500,
+    },
+    status: {
+      type: String,
+      enum: ["pending", "approved", "rejected", "cancelled"],
+      default: "pending",
+    },
+    requestedAt: {
+      type: Date,
+      default: Date.now,
+    },
+    reviewedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
+    reviewedAt: {
+      type: Date,
+      default: null,
+    },
+    responseNote: {
+      type: String,
+      trim: true,
+      maxlength: 500,
+    },
+  },
+  { _id: false }
+);
+
 const interviewSchema = new mongoose.Schema(
   {
     jobId: {
@@ -47,7 +106,8 @@ const interviewSchema = new mongoose.Schema(
     },
     type: {
       type: String,
-      enum: ["aptitude", "technical", "hr"],
+      trim: true,
+      maxlength: 50,
       default: "technical",
     },
     status: {
@@ -59,6 +119,10 @@ const interviewSchema = new mongoose.Schema(
       type: String,
       trim: true,
       maxlength: 1000,
+    },
+    rescheduleRequest: {
+      type: rescheduleRequestSchema,
+      default: null,
     },
   },
   { timestamps: true }

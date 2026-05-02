@@ -31,14 +31,14 @@ Audit date: 2026-05-01
 | Students see latest status | Implemented | `frontend/src/pages/Applications.tsx`, `backend/src/controllers/applicationController.js` | Status and history loaded from API. |
 | Status history log | Implemented | `backend/src/models/Application.js`, `frontend/src/pages/Applications.tsx` | History records status, actor, time, note. |
 | Invalid status jump prevention | Implemented | `backend/src/services/statusWorkflowService.js` | Blocks Applied -> Selected and terminal changes. |
-| Recruiters create interview slots | Implemented | `backend/src/controllers/interviewController.js`, `frontend/src/pages/Interviews.tsx` | Recruiter/officer/admin slot creation. |
+| Recruiters create interview slots | Implemented | `backend/src/controllers/interviewController.js`, `frontend/src/pages/Interviews.tsx` | Recruiter/officer/admin slot creation with custom/manual interview round names. |
 | Students book available slots | Implemented | `backend/src/controllers/interviewController.js`, `frontend/src/pages/Interviews.tsx` | Students must have an eligible application state. |
 | Prevent double booking/time conflicts | Implemented | `backend/src/controllers/interviewController.js`, `backend/src/services/schedulingService.js` | Checks slot availability and student overlapping bookings. |
 | Calendar view | Implemented | `frontend/src/pages/Interviews.tsx` | List/calendar toggle. |
-| Reschedule/cancel slots | Implemented | `backend/src/controllers/interviewController.js`, `frontend/src/pages/Interviews.tsx` | Confirmation popups added. |
+| Reschedule/cancel slots | Implemented | `backend/src/controllers/interviewController.js`, `frontend/src/pages/Interviews.tsx` | Recruiters can reschedule directly; students can request a new time and the slot changes only after recruiter/officer/admin approval. Confirmation popups added. |
 | Status change notifications | Implemented | `backend/src/services/notificationService.js`, `backend/src/controllers/notificationController.js`, `frontend/src/pages/Dashboard.tsx` | Notification records are created and surfaced on dashboard. |
 | Deadline reminders | Partially implemented | `backend/src/controllers/notificationController.js` | API hook exists; no scheduled background worker. |
-| Interview alerts | Implemented | `backend/src/services/notificationService.js`, `backend/src/controllers/interviewController.js` | Booking/cancel/reschedule notifications. |
+| Interview alerts | Implemented | `backend/src/services/notificationService.js`, `backend/src/controllers/interviewController.js` | Booking, cancel, reschedule, student request, approval, and rejection notifications. |
 | Announcement board | Implemented | `backend/src/models/Announcement.js`, `backend/src/controllers/notificationController.js`, `frontend/src/pages/Dashboard.tsx` | Officer/admin can publish via API; dashboard displays active announcements. |
 | Overall stats | Implemented | `backend/src/controllers/dashboardController.js`, `frontend/src/pages/Dashboard.tsx`, `frontend/src/pages/Analytics.tsx` | Total students, placed students, placement percentage, offers. |
 | Company-wise placement data | Implemented | `backend/src/controllers/dashboardController.js`, `frontend/src/pages/Analytics.tsx` | Chart-ready API and bar chart. |
@@ -69,13 +69,16 @@ Audit date: 2026-05-01
   - `frontend/src/test/job-form-dialog.test.tsx`
   - Existing job posting validation simulation retained in `frontend/src/test/jobPosting.test.ts`.
 
-Covered behaviors include eligibility calculation, status workflow validation, date/deadline validation, RBAC/auth middleware, interview overlap logic, report statistics, job form validation, and risky-action confirmation UI.
+Covered behaviors include eligibility calculation, status workflow validation, date/deadline validation, RBAC/auth middleware, interview overlap logic, reschedule request formatting/validation, report statistics, job form validation, manual branch entry, and risky-action confirmation UI.
 
 ## UI/UX Improvements Made
 
 - Role-aware sidebar navigation for student, recruiter, officer, and admin.
 - Responsive compact sidebar and tighter dashboard padding for smaller screens.
 - API-backed applications and interview pages with loading and empty states.
+- Interview page now separates confirmed schedules from pending student change requests and gives recruiters approve/reject actions.
+- Job posting form now supports manually added eligible branches beyond the default suggestions.
+- Interview round field now supports custom/manual round names beyond aptitude, technical, and HR.
 - Job cards show eligibility, rejection reasons, applied state, and close confirmation.
 - Analytics now uses backend report data and has export buttons.
 - Dashboard displays notifications and announcements.
@@ -87,6 +90,7 @@ Covered behaviors include eligibility calculation, status workflow validation, d
 - Recruiters can manage only jobs, applications, and interview slots that they created.
 - Officer/admin roles can access institutional reports and broader management views.
 - Backend rejects invalid job deadlines, CGPA values, duplicate applications, invalid status transitions, and interview conflicts.
+- Student interview reschedule requests are stored as pending data first; server-side approval is required before the confirmed interview time changes.
 - Passwords are hashed and excluded from normal user queries.
 
 ## Risky-Action Popup Coverage
@@ -96,6 +100,8 @@ Covered behaviors include eligibility calculation, status workflow validation, d
 - Reject/change applicant status: `frontend/src/pages/Applications.tsx`
 - Cancel interview: `frontend/src/pages/Interviews.tsx`
 - Reschedule interview: `frontend/src/pages/Interviews.tsx`
+- Student reschedule request: `frontend/src/pages/Interviews.tsx`
+- Approve/reject student reschedule request: `frontend/src/pages/Interviews.tsx`
 - Book interview slot: `frontend/src/pages/Interviews.tsx`
 - Logout with unsaved profile changes: `frontend/src/components/AppSidebar.tsx` with `frontend/src/lib/auth-context.tsx`
 

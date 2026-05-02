@@ -11,6 +11,8 @@ const {
 const { validateStatusTransition } = require("../services/statusWorkflowService");
 const { notifyInterview } = require("../services/notificationService");
 
+const INTERVIEW_MANAGERS = ["recruiter", "officer", "admin"];
+
 async function assertJobOwnership(job, user) {
   if (!job) throw new HttpError(404, "Job not found");
   if (user.role === "recruiter" && String(job.createdBy) !== user.id) {
@@ -22,7 +24,37 @@ async function populateSlot(slot) {
   return slot.populate([
     { path: "jobId", select: "title company createdBy" },
     { path: "bookedBy", select: "name email" },
+    { path: "rescheduleRequest.requestedBy", select: "name email" },
+    { path: "rescheduleRequest.reviewedBy", select: "name email" },
   ]);
+}
+
+async function assertNoInterviewConflicts(slot, startAt, endAt) {
+  const overlappingSameJob = await Interview.findOne({
+    _id: { $ne: slot._id },
+    jobId: slot.jobId._id || slot.jobId,
+    status: { $ne: "cancelled" },
+    startAt: { $lt: endAt },
+    endAt: { $gt: startAt },
+  });
+
+  if (overlappingSameJob) {
+    throw new HttpError(409, "Another interview slot already overlaps this time for the same job");
+  }
+
+  if (slot.bookedBy) {
+    const studentConflict = await Interview.findOne({
+      _id: { $ne: slot._id },
+      bookedBy: slot.bookedBy,
+      status: "scheduled",
+      startAt: { $lt: endAt },
+      endAt: { $gt: startAt },
+    });
+
+    if (studentConflict) {
+      throw new HttpError(409, "The booked student already has an interview during this time");
+    }
+  }
 }
 
 exports.listInterviews = asyncHandler(async (req, res) => {
@@ -48,7 +80,7 @@ exports.listInterviews = asyncHandler(async (req, res) => {
 });
 
 exports.createInterviewSlot = asyncHandler(async (req, res) => {
-  if (!["recruiter", "officer", "admin"].includes(req.user.role)) {
+  if (!INTERVIEW_MANAGERS.includes(req.user.role)) {
     throw new HttpError(403, "Only recruiters, officers, or admins can create interview slots");
   }
 
@@ -184,7 +216,7 @@ exports.cancelInterviewSlot = asyncHandler(async (req, res) => {
 });
 
 exports.rescheduleInterviewSlot = asyncHandler(async (req, res) => {
-  if (!["recruiter", "officer", "admin"].includes(req.user.role)) {
+  if (!INTERVIEW_MANAGERS.includes(req.user.role)) {
     throw new HttpError(403, "Only recruiters, officers, or admins can reschedule interviews");
   }
 
@@ -198,37 +230,19 @@ exports.rescheduleInterviewSlot = asyncHandler(async (req, res) => {
   const durationMinutes = req.body.durationMinutes || Math.round((slot.endAt - slot.startAt) / 60000);
   const { startAt, endAt } = buildInterviewWindow(req.body.startAt || slot.startAt, durationMinutes);
 
-  const overlappingSameJob = await Interview.findOne({
-    _id: { $ne: slot._id },
-    jobId: slot.jobId._id,
-    status: { $ne: "cancelled" },
-    startAt: { $lt: endAt },
-    endAt: { $gt: startAt },
-  });
-
-  if (overlappingSameJob) {
-    throw new HttpError(409, "Another interview slot already overlaps this time for the same job");
-  }
-
-  if (slot.bookedBy) {
-    const studentConflict = await Interview.findOne({
-      _id: { $ne: slot._id },
-      bookedBy: slot.bookedBy,
-      status: "scheduled",
-      startAt: { $lt: endAt },
-      endAt: { $gt: startAt },
-    });
-
-    if (studentConflict) {
-      throw new HttpError(409, "The booked student already has an interview during this time");
-    }
-  }
+  await assertNoInterviewConflicts(slot, startAt, endAt);
 
   slot.startAt = startAt;
   slot.endAt = endAt;
   slot.interviewer = req.body.interviewer ?? slot.interviewer;
   slot.location = req.body.location ?? slot.location;
   slot.type = req.body.type ?? slot.type;
+  if (slot.rescheduleRequest?.status === "pending") {
+    slot.rescheduleRequest.status = "cancelled";
+    slot.rescheduleRequest.reviewedBy = req.user.id;
+    slot.rescheduleRequest.reviewedAt = new Date();
+    slot.rescheduleRequest.responseNote = "Recruiter rescheduled the interview directly.";
+  }
   await slot.save();
 
   if (slot.bookedBy) {
@@ -237,6 +251,114 @@ exports.rescheduleInterviewSlot = asyncHandler(async (req, res) => {
       slot,
       "Interview rescheduled",
       `The interview for ${slot.jobId.title} at ${slot.jobId.company} has a new time.`
+    );
+  }
+
+  const populated = await populateSlot(slot);
+  res.json(formatInterviewForClient(populated));
+});
+
+exports.requestInterviewReschedule = asyncHandler(async (req, res) => {
+  if (req.user.role !== "student") {
+    throw new HttpError(403, "Only students can request interview rescheduling");
+  }
+
+  const slot = await Interview.findById(req.params.id).populate("jobId", "title company createdBy");
+  if (!slot) throw new HttpError(404, "Interview slot not found");
+
+  if (slot.status !== "scheduled" || !slot.bookedBy || String(slot.bookedBy) !== req.user.id) {
+    throw new HttpError(403, "You can only request changes for your own scheduled interview");
+  }
+
+  if (slot.rescheduleRequest?.status === "pending") {
+    throw new HttpError(409, "A reschedule request is already pending for this interview");
+  }
+
+  const errors = validateInterviewPayload({ ...req.body, jobId: slot.jobId._id }, { partial: true });
+  if (errors.length) throw new HttpError(400, "Reschedule request validation failed", errors);
+
+  const durationMinutes = req.body.durationMinutes || Math.round((slot.endAt - slot.startAt) / 60000);
+  const { startAt, endAt } = buildInterviewWindow(req.body.startAt, durationMinutes);
+
+  if (!startAt || !endAt) {
+    throw new HttpError(400, "A valid requested interview time is required");
+  }
+
+  const existingStudentConflict = await Interview.findOne({
+    _id: { $ne: slot._id },
+    bookedBy: req.user.id,
+    status: "scheduled",
+    startAt: { $lt: endAt },
+    endAt: { $gt: startAt },
+  });
+
+  if (existingStudentConflict) {
+    throw new HttpError(409, "You already have an interview scheduled during the requested time");
+  }
+
+  slot.rescheduleRequest = {
+    requestedBy: req.user.id,
+    startAt,
+    endAt,
+    durationMinutes,
+    reason: req.body.reason,
+    status: "pending",
+    requestedAt: new Date(),
+  };
+
+  await slot.save();
+  await notifyInterview(
+    slot.createdBy,
+    slot,
+    "Interview change requested",
+    `${req.user.name || "A student"} requested a new time for ${slot.jobId.title} at ${slot.jobId.company}.`
+  );
+
+  const populated = await populateSlot(slot);
+  res.json(formatInterviewForClient(populated));
+});
+
+exports.reviewInterviewRescheduleRequest = asyncHandler(async (req, res) => {
+  if (!INTERVIEW_MANAGERS.includes(req.user.role)) {
+    throw new HttpError(403, "Only recruiters, officers, or admins can review reschedule requests");
+  }
+
+  const decision = String(req.body.decision || "").toLowerCase();
+  if (!["approve", "reject"].includes(decision)) {
+    throw new HttpError(400, "Decision must be approve or reject");
+  }
+
+  const slot = await Interview.findById(req.params.id).populate("jobId", "title company createdBy");
+  if (!slot) throw new HttpError(404, "Interview slot not found");
+  await assertJobOwnership(slot.jobId, req.user);
+
+  if (!slot.rescheduleRequest || slot.rescheduleRequest.status !== "pending") {
+    throw new HttpError(400, "There is no pending reschedule request for this interview");
+  }
+
+  if (decision === "approve") {
+    await assertNoInterviewConflicts(slot, slot.rescheduleRequest.startAt, slot.rescheduleRequest.endAt);
+    slot.startAt = slot.rescheduleRequest.startAt;
+    slot.endAt = slot.rescheduleRequest.endAt;
+    slot.rescheduleRequest.status = "approved";
+  } else {
+    slot.rescheduleRequest.status = "rejected";
+  }
+
+  slot.rescheduleRequest.reviewedBy = req.user.id;
+  slot.rescheduleRequest.reviewedAt = new Date();
+  slot.rescheduleRequest.responseNote = req.body.responseNote;
+
+  await slot.save();
+
+  if (slot.bookedBy) {
+    await notifyInterview(
+      slot.bookedBy,
+      slot,
+      decision === "approve" ? "Interview change approved" : "Interview change rejected",
+      decision === "approve"
+        ? `Your interview for ${slot.jobId.title} at ${slot.jobId.company} has been moved to the requested time.`
+        : `Your reschedule request for ${slot.jobId.title} at ${slot.jobId.company} was rejected.`
     );
   }
 

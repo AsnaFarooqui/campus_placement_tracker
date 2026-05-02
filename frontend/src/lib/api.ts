@@ -38,12 +38,26 @@ export interface InterviewSlot {
   time: string;
   startAt?: string;
   endAt?: string;
-  type: "aptitude" | "technical" | "hr";
+  type: string;
   status: "available" | "scheduled" | "completed" | "cancelled";
   candidate?: string;
   bookedBy?: string | null;
   interviewer?: string;
   location?: string;
+  rescheduleRequest?: {
+    requestedBy?: string | null;
+    requestedByName?: string;
+    startAt: string;
+    endAt: string;
+    durationMinutes: number;
+    reason?: string;
+    status: "pending" | "approved" | "rejected" | "cancelled";
+    requestedAt?: string | null;
+    reviewedBy?: string | null;
+    reviewedByName?: string;
+    reviewedAt?: string | null;
+    responseNote?: string;
+  } | null;
 }
 
 type LoginResponse = {
@@ -231,7 +245,7 @@ export async function createInterviewSlot(data: {
   jobId: string;
   startAt: string;
   durationMinutes: number;
-  type: "aptitude" | "technical" | "hr";
+  type: string;
   interviewer?: string;
   location?: string;
 }) {
@@ -255,6 +269,26 @@ export async function cancelInterviewSlot(id: string) {
 
 export async function rescheduleInterviewSlot(id: string, data: { startAt: string; durationMinutes?: number }) {
   return request<InterviewSlot>(`/interviews/${id}/reschedule`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function requestInterviewReschedule(
+  id: string,
+  data: { startAt: string; durationMinutes?: number; reason?: string }
+) {
+  return request<InterviewSlot>(`/interviews/${id}/reschedule-request`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function reviewInterviewRescheduleRequest(
+  id: string,
+  data: { decision: "approve" | "reject"; responseNote?: string }
+) {
+  return request<InterviewSlot>(`/interviews/${id}/reschedule-request/review`, {
     method: "PATCH",
     body: JSON.stringify(data),
   });

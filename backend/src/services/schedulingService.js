@@ -37,10 +37,16 @@ function hasTimeConflict(slots, startAt, endAt, excludeId = null) {
   });
 }
 
+function toId(value) {
+  if (!value) return null;
+  return String(value._id || value);
+}
+
 function formatInterviewForClient(slot) {
   const job = slot.jobId || {};
   const startAt = new Date(slot.startAt);
   const bookedBy = slot.bookedBy || {};
+  const request = slot.rescheduleRequest;
 
   return {
     id: String(slot._id),
@@ -57,6 +63,22 @@ function formatInterviewForClient(slot) {
     bookedBy: bookedBy._id ? String(bookedBy._id) : null,
     interviewer: slot.interviewer,
     location: slot.location,
+    rescheduleRequest: request
+      ? {
+          requestedBy: toId(request.requestedBy),
+          requestedByName: request.requestedBy?.name,
+          startAt: new Date(request.startAt).toISOString(),
+          endAt: new Date(request.endAt).toISOString(),
+          durationMinutes: request.durationMinutes,
+          reason: request.reason,
+          status: request.status,
+          requestedAt: request.requestedAt ? new Date(request.requestedAt).toISOString() : null,
+          reviewedBy: toId(request.reviewedBy),
+          reviewedByName: request.reviewedBy?.name,
+          reviewedAt: request.reviewedAt ? new Date(request.reviewedAt).toISOString() : null,
+          responseNote: request.responseNote,
+        }
+      : null,
   };
 }
 

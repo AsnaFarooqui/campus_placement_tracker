@@ -14,6 +14,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { X } from 'lucide-react';
 
 const branchOptions = [
   'Computer Science',
@@ -54,6 +55,7 @@ export default function JobFormDialog({ triggerLabel, onSubmit, initialJob, open
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
   const [form, setForm] = useState<JobFormValues>(defaultForm);
+  const [customBranch, setCustomBranch] = useState('');
 
   const open = controlledOpen ?? internalOpen;
   const setOpen = onOpenChange ?? setInternalOpen;
@@ -61,6 +63,7 @@ export default function JobFormDialog({ triggerLabel, onSubmit, initialJob, open
 
   useEffect(() => {
     setErrors([]);
+    setCustomBranch('');
     if (initialJob) {
       setForm({
         title: initialJob.title,
@@ -92,6 +95,24 @@ export default function JobFormDialog({ triggerLabel, onSubmit, initialJob, open
         ...current,
         allowedBranches: nextBranches.length > 0 ? nextBranches : current.allowedBranches,
       };
+    });
+  };
+
+  const addCustomBranch = () => {
+    const branch = customBranch.trim();
+    if (!branch) return;
+
+    setForm((current) => {
+      const exists = current.allowedBranches.some((value) => value.toLowerCase() === branch.toLowerCase());
+      return exists ? current : { ...current, allowedBranches: [...current.allowedBranches, branch] };
+    });
+    setCustomBranch('');
+  };
+
+  const removeBranch = (branch: string) => {
+    setForm((current) => {
+      const nextBranches = current.allowedBranches.filter((value) => value !== branch);
+      return { ...current, allowedBranches: nextBranches };
     });
   };
 
@@ -160,7 +181,50 @@ export default function JobFormDialog({ triggerLabel, onSubmit, initialJob, open
           <div className="space-y-2"><Label>Maximum backlogs</Label><Input type="number" min="0" value={form.maxBacklogs} onChange={(e) => setForm({ ...form, maxBacklogs: Number(e.target.value) })} /></div>
           <div className="space-y-2"><Label>Deadline</Label><Input type="date" min={new Date().toISOString().slice(0, 10)} value={form.deadline} onChange={(e) => setForm({ ...form, deadline: e.target.value })} /></div>
           <div className="space-y-2"><Label>Status</Label><Select value={form.status} onValueChange={(value: 'draft' | 'open' | 'closed') => setForm({ ...form, status: value })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="draft">Draft</SelectItem><SelectItem value="open">Open</SelectItem><SelectItem value="closed">Closed</SelectItem></SelectContent></Select></div>
-          <div className="space-y-2 md:col-span-2"><Label>Allowed branches</Label><div className="flex flex-wrap gap-2">{branchOptions.map((branch) => (<Button key={branch} type="button" variant={form.allowedBranches.includes(branch) ? 'default' : 'outline'} onClick={() => toggleBranch(branch)} className="text-xs">{branch}</Button>))}</div></div>
+          <div className="space-y-3 md:col-span-2">
+            <Label>Allowed branches</Label>
+            <div className="flex flex-wrap gap-2">
+              {branchOptions.map((branch) => (
+                <Button
+                  key={branch}
+                  type="button"
+                  variant={form.allowedBranches.includes(branch) ? 'default' : 'outline'}
+                  onClick={() => toggleBranch(branch)}
+                  className="text-xs"
+                >
+                  {branch}
+                </Button>
+              ))}
+            </div>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Input
+                value={customBranch}
+                onChange={(e) => setCustomBranch(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    addCustomBranch();
+                  }
+                }}
+                placeholder="Add another branch manually"
+              />
+              <Button type="button" variant="outline" onClick={addCustomBranch}>Add branch</Button>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {form.allowedBranches.map((branch) => (
+                <Button
+                  key={branch}
+                  type="button"
+                  variant="secondary"
+                  className="text-xs"
+                  aria-label={`Remove ${branch}`}
+                  onClick={() => removeBranch(branch)}
+                >
+                  {branch} <X className="h-3 w-3" />
+                </Button>
+              ))}
+            </div>
+          </div>
         </div>
 
         <div className="flex justify-end">

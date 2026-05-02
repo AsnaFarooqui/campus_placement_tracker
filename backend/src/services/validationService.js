@@ -137,6 +137,22 @@ function validateInterviewPayload(payload, { partial = false, now = new Date() }
     }
   }
 
+  if (!partial || Object.prototype.hasOwnProperty.call(payload, "type")) {
+    if (payload.type !== undefined && payload.type !== null) {
+      if (!isNonEmptyString(payload.type)) {
+        errors.push("Interview round type is required");
+      } else if (payload.type.trim().length > 50) {
+        errors.push("Interview round type must be 50 characters or fewer");
+      }
+    }
+  }
+
+  if (Object.prototype.hasOwnProperty.call(payload, "reason") && payload.reason) {
+    if (String(payload.reason).trim().length > 500) {
+      errors.push("Reschedule request reason must be 500 characters or fewer");
+    }
+  }
+
   return errors;
 }
 

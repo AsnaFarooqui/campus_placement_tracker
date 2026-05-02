@@ -3,6 +3,7 @@ const assert = require("node:assert/strict");
 
 const {
   isFutureDate,
+  validateInterviewPayload,
   validateJobPayload,
   validateStudentProfile,
 } = require("../src/services/validationService");
@@ -45,4 +46,27 @@ test("student profile validation constrains CGPA to 0.0 through 4.0", () => {
   });
 
   assert.deepEqual(errors, ["CGPA must be between 0.0 and 4.0"]);
+});
+
+test("interview validation allows custom round types and validates request reason length", () => {
+  const now = new Date("2026-05-01T00:00:00.000Z");
+
+  assert.deepEqual(validateInterviewPayload({
+    jobId: "job-1",
+    startAt: "2026-06-01T10:00:00.000Z",
+    durationMinutes: 45,
+    type: "Group Discussion",
+    reason: "Class presentation conflict",
+  }, { now }), []);
+
+  const errors = validateInterviewPayload({
+    jobId: "job-1",
+    startAt: "2026-06-01T10:00:00.000Z",
+    durationMinutes: 45,
+    type: "",
+    reason: "x".repeat(501),
+  }, { now });
+
+  assert.ok(errors.includes("Interview round type is required"));
+  assert.ok(errors.includes("Reschedule request reason must be 500 characters or fewer"));
 });

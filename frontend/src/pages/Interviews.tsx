@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Calendar, Clock, Building2, Plus, XCircle, CheckCircle2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/lib/auth-context";
 import {
   InterviewSlot,
@@ -19,6 +20,8 @@ import {
   createInterviewSlot,
   getJobs,
   getMyInterviews,
+  requestInterviewReschedule,
+  reviewInterviewRescheduleRequest,
   rescheduleInterviewSlot,
 } from "@/lib/api.ts";
 
@@ -39,7 +42,11 @@ type PendingAction =
   | { type: "book"; slot: InterviewSlot }
   | { type: "cancel"; slot: InterviewSlot }
   | { type: "reschedule"; slot: InterviewSlot; startAt: string; durationMinutes: number }
+  | { type: "request-reschedule"; slot: InterviewSlot; startAt: string; durationMinutes: number; reason?: string }
+  | { type: "review-request"; slot: InterviewSlot; decision: "approve" | "reject" }
   | null;
+
+const roundSuggestions = ["aptitude", "technical", "hr", "managerial", "group discussion"];
 
 function formatDate(value: string) {
   return new Date(`${value}T00:00:00`).toLocaleDateString("en-IN", {
@@ -50,6 +57,23 @@ function formatDate(value: string) {
   });
 }
 
+function formatDateTime(value?: string) {
+  if (!value) return "";
+  const date = new Date(value);
+  return date.toLocaleDateString("en-IN", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  }) + " at " + date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+}
+
+function roundLabel(value: string) {
+  return value
+    .split(/[\s-]+/)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
 function SlotFormDialog({
   open,
   onOpenChange,
@@ -57,21 +81,22 @@ function SlotFormDialog({
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSubmit: (data: { jobId: string; startAt: string; durationMinutes: number; type: "aptitude" | "technical" | "hr"; interviewer?: string }) => void;
+  onSubmit: (data: { jobId: string; startAt: string; durationMinutes: number; type: string; interviewer?: string; location?: string }) => void;
 }) {
   const { data: jobs = [] } = useQuery({ queryKey: ["jobs"], queryFn: () => getJobs() });
   const [jobId, setJobId] = useState("");
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
   const [durationMinutes, setDurationMinutes] = useState("60");
-  const [type, setType] = useState<"aptitude" | "technical" | "hr">("technical");
+  const [type, setType] = useState("technical");
   const [interviewer, setInterviewer] = useState("");
+  const [location, setLocation] = useState("Karachi placement cell");
   const [error, setError] = useState("");
 
   function submit() {
     setError("");
-    if (!jobId || !date || !time) {
-      setError("Job, date, and time are required.");
+    if (!jobId || !date || !time || !type.trim()) {
+      setError("Job, date, time, and round type are required.");
       return;
     }
     const startAt = new Date(`${date}T${time}`);
@@ -83,8 +108,9 @@ function SlotFormDialog({
       jobId,
       startAt: startAt.toISOString(),
       durationMinutes: Number(durationMinutes),
-      type,
+      type: type.trim(),
       interviewer: interviewer || undefined,
+      location: location || undefined,
     });
     onOpenChange(false);
   }
@@ -120,19 +146,26 @@ function SlotFormDialog({
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
               <Label>Round</Label>
-              <Select value={type} onValueChange={(value) => setType(value as any)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="aptitude">Aptitude</SelectItem>
-                  <SelectItem value="technical">Technical</SelectItem>
-                  <SelectItem value="hr">HR</SelectItem>
-                </SelectContent>
-              </Select>
+              <Input
+                list="interview-round-options"
+                value={type}
+                onChange={(event) => setType(event.target.value)}
+                placeholder="Technical, HR, managerial..."
+              />
+              <datalist id="interview-round-options">
+                {roundSuggestions.map((round) => (
+                  <option key={round} value={roundLabel(round)} />
+                ))}
+              </datalist>
             </div>
             <div className="space-y-2">
               <Label>Duration</Label>
               <Input type="number" min="15" max="240" step="15" value={durationMinutes} onChange={(event) => setDurationMinutes(event.target.value)} />
             </div>
+          </div>
+          <div className="space-y-2">
+            <Label>Location</Label>
+            <Input value={location} onChange={(event) => setLocation(event.target.value)} placeholder="Karachi office, Zoom, campus room..." />
           </div>
           <div className="space-y-2">
             <Label>Interviewer</Label>
@@ -153,15 +186,32 @@ function RescheduleDialog({
   slot,
   onClose,
   onSubmit,
+  requestMode = false,
 }: {
   slot: InterviewSlot | null;
   onClose: () => void;
-  onSubmit: (startAt: string, durationMinutes: number) => void;
+  onSubmit: (startAt: string, durationMinutes: number, reason?: string) => void;
+  requestMode?: boolean;
 }) {
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
   const [durationMinutes, setDurationMinutes] = useState("60");
+  const [reason, setReason] = useState("");
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!slot) return;
+    const currentStart = slot.startAt ? new Date(slot.startAt) : null;
+    const duration = slot.startAt && slot.endAt
+      ? Math.max(15, Math.round((new Date(slot.endAt).getTime() - new Date(slot.startAt).getTime()) / 60000))
+      : 60;
+
+    setDate(currentStart && !Number.isNaN(currentStart.getTime()) ? currentStart.toISOString().slice(0, 10) : "");
+    setTime(currentStart && !Number.isNaN(currentStart.getTime()) ? currentStart.toTimeString().slice(0, 5) : "");
+    setDurationMinutes(String(duration));
+    setReason("");
+    setError("");
+  }, [slot]);
 
   function submit() {
     setError("");
@@ -174,14 +224,14 @@ function RescheduleDialog({
       setError("New interview time must be in the future.");
       return;
     }
-    onSubmit(startAt.toISOString(), Number(durationMinutes));
+    onSubmit(startAt.toISOString(), Number(durationMinutes), reason.trim() || undefined);
   }
 
   return (
     <Dialog open={!!slot} onOpenChange={(open) => !open && onClose()}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Reschedule Interview</DialogTitle>
+          <DialogTitle>{requestMode ? "Request Interview Change" : "Reschedule Interview"}</DialogTitle>
         </DialogHeader>
         <div className="grid gap-4">
           <div className="grid grid-cols-2 gap-3">
@@ -198,11 +248,22 @@ function RescheduleDialog({
             <Label>Duration</Label>
             <Input type="number" min="15" max="240" step="15" value={durationMinutes} onChange={(event) => setDurationMinutes(event.target.value)} />
           </div>
+          {requestMode && (
+            <div className="space-y-2">
+              <Label>Reason</Label>
+              <Textarea
+                value={reason}
+                onChange={(event) => setReason(event.target.value)}
+                placeholder="Briefly explain why you need a different time"
+                rows={3}
+              />
+            </div>
+          )}
           {error && <p className="text-sm text-destructive">{error}</p>}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancel</Button>
-          <Button onClick={submit}>Continue</Button>
+          <Button onClick={submit}>{requestMode ? "Send request" : "Continue"}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -217,6 +278,7 @@ export default function Interviews() {
   const [filterType, setFilterType] = useState("all");
   const [showCreate, setShowCreate] = useState(false);
   const [reschedulingSlot, setReschedulingSlot] = useState<InterviewSlot | null>(null);
+  const [requestingSlot, setRequestingSlot] = useState<InterviewSlot | null>(null);
   const [pendingAction, setPendingAction] = useState<PendingAction>(null);
 
   const { data: slots = [], isLoading } = useQuery({
@@ -264,12 +326,41 @@ export default function Interviews() {
     onError: (error: Error) => toast.error(error.message),
   });
 
+  const requestRescheduleMutation = useMutation({
+    mutationFn: ({ id, startAt, durationMinutes, reason }: { id: string; startAt: string; durationMinutes: number; reason?: string }) =>
+      requestInterviewReschedule(id, { startAt, durationMinutes, reason }),
+    onSuccess: () => {
+      toast.success("Reschedule request sent");
+      invalidate();
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const reviewRequestMutation = useMutation({
+    mutationFn: ({ id, decision }: { id: string; decision: "approve" | "reject" }) =>
+      reviewInterviewRescheduleRequest(id, { decision }),
+    onSuccess: (_data, variables) => {
+      toast.success(variables.decision === "approve" ? "Request approved" : "Request rejected");
+      invalidate();
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const roundFilterOptions = useMemo(() => {
+    const rounds = new Set(roundSuggestions.map((round) => round.toLowerCase()));
+    slots.forEach((slot) => {
+      if (slot.type) rounds.add(slot.type.toLowerCase());
+    });
+    return ["all", ...Array.from(rounds)];
+  }, [slots]);
+
   const filtered = useMemo(() => slots
-    .filter((slot) => filterType === "all" || slot.type === filterType)
+    .filter((slot) => filterType === "all" || slot.type.toLowerCase() === filterType)
     .sort((a, b) => (a.startAt || "").localeCompare(b.startAt || "")), [slots, filterType]);
 
   const mySlots = slots.filter((slot) => slot.bookedBy === user?.id);
   const scheduledCount = slots.filter((slot) => slot.status === "scheduled").length;
+  const pendingRequestCount = slots.filter((slot) => slot.rescheduleRequest?.status === "pending").length;
 
   function confirmPendingAction() {
     if (!pendingAction) return;
@@ -282,6 +373,20 @@ export default function Interviews() {
         durationMinutes: pendingAction.durationMinutes,
       });
     }
+    if (pendingAction.type === "request-reschedule") {
+      requestRescheduleMutation.mutate({
+        id: pendingAction.slot.id,
+        startAt: pendingAction.startAt,
+        durationMinutes: pendingAction.durationMinutes,
+        reason: pendingAction.reason,
+      });
+    }
+    if (pendingAction.type === "review-request") {
+      reviewRequestMutation.mutate({
+        id: pendingAction.slot.id,
+        decision: pendingAction.decision,
+      });
+    }
     setPendingAction(null);
   }
 
@@ -291,7 +396,31 @@ export default function Interviews() {
       ? `Cancel this interview for ${pendingAction.slot.jobTitle}. ${role === "student" ? "The slot will be released for other eligible students." : "The student will be notified and the slot will no longer be available."}`
       : pendingAction?.type === "reschedule"
         ? `Move this interview for ${pendingAction.slot.jobTitle} to the selected new time. The booked student will be notified.`
-        : "";
+        : pendingAction?.type === "request-reschedule"
+          ? `Send this requested time change for ${pendingAction.slot.jobTitle}. The interview time will not change unless the recruiter approves it.`
+          : pendingAction?.type === "review-request"
+            ? `${pendingAction.decision === "approve" ? "Approve" : "Reject"} this student's requested interview time for ${pendingAction.slot.jobTitle}. ${pendingAction.decision === "approve" ? "The confirmed interview time will be updated." : "The original interview time will stay unchanged."}`
+            : "";
+
+  const confirmTitle = pendingAction?.type === "book"
+    ? "Book interview slot?"
+    : pendingAction?.type === "reschedule"
+      ? "Reschedule interview?"
+      : pendingAction?.type === "request-reschedule"
+        ? "Send reschedule request?"
+        : pendingAction?.type === "review-request"
+          ? pendingAction.decision === "approve" ? "Approve request?" : "Reject request?"
+          : "Cancel interview?";
+
+  const confirmLabel = pendingAction?.type === "book"
+    ? "Book slot"
+    : pendingAction?.type === "reschedule"
+      ? "Reschedule"
+      : pendingAction?.type === "request-reschedule"
+        ? "Send request"
+        : pendingAction?.type === "review-request"
+          ? pendingAction.decision === "approve" ? "Approve request" : "Reject request"
+          : "Cancel interview";
 
   return (
     <DashboardLayout>
@@ -314,7 +443,7 @@ export default function Interviews() {
           { label: "Total slots", value: slots.length },
           { label: "Available", value: slots.filter((slot) => slot.status === "available").length },
           { label: "Scheduled", value: scheduledCount },
-          { label: role === "student" ? "Your bookings" : "Cancelled", value: role === "student" ? mySlots.length : slots.filter((slot) => slot.status === "cancelled").length },
+          { label: role === "student" ? "Your bookings" : "Pending requests", value: role === "student" ? mySlots.length : pendingRequestCount },
         ].map((item) => (
           <div key={item.label} className="bg-card rounded-lg border border-border px-4 py-3">
             <p className="text-xs text-muted-foreground">{item.label}</p>
@@ -340,10 +469,11 @@ export default function Interviews() {
         <Select value={filterType} onValueChange={setFilterType}>
           <SelectTrigger className="w-[150px]"><SelectValue /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All rounds</SelectItem>
-            <SelectItem value="aptitude">Aptitude</SelectItem>
-            <SelectItem value="technical">Technical</SelectItem>
-            <SelectItem value="hr">HR</SelectItem>
+            {roundFilterOptions.map((round) => (
+              <SelectItem key={round} value={round}>
+                {round === "all" ? "All rounds" : roundLabel(round)}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </div>
@@ -354,10 +484,12 @@ export default function Interviews() {
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {filtered.map((slot) => {
             const isMyBooking = slot.bookedBy === user?.id;
+            const pendingRequest = slot.rescheduleRequest?.status === "pending" ? slot.rescheduleRequest : null;
+            const roundColor = typeColors[slot.type.toLowerCase()] || "bg-slate-50 text-slate-700 border-slate-200";
             return (
               <div key={slot.id} className={`bg-card rounded-lg border border-border p-5 ${slot.status === "cancelled" ? "opacity-60" : ""}`}>
                 <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
-                  <Badge variant="outline" className={`text-xs capitalize ${typeColors[slot.type]}`}>{slot.type} round</Badge>
+                  <Badge variant="outline" className={`text-xs capitalize ${roundColor}`}>{roundLabel(slot.type)} round</Badge>
                   <Badge variant="outline" className={`text-xs capitalize ${statusColors[slot.status]}`}>{slot.status}</Badge>
                 </div>
                 <h3 className="font-display font-semibold mb-1">{slot.jobTitle}</h3>
@@ -368,7 +500,29 @@ export default function Interviews() {
                   <span className="flex items-center gap-1.5"><Calendar className="w-4 h-4" /> {formatDate(slot.date)}</span>
                   <span className="flex items-center gap-1.5"><Clock className="w-4 h-4" /> {slot.time}</span>
                 </div>
+                {(slot.location || slot.interviewer) && (
+                  <p className="text-sm text-muted-foreground mb-4">
+                    {slot.location ? `Location: ${slot.location}` : ""}{slot.location && slot.interviewer ? " - " : ""}{slot.interviewer ? `Interviewer: ${slot.interviewer}` : ""}
+                  </p>
+                )}
                 {slot.candidate && <p className="text-sm text-muted-foreground mb-4">Candidate: {slot.candidate}</p>}
+                {pendingRequest && (
+                  <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                    <p className="font-medium">Pending change request</p>
+                    <p>Requested: {formatDateTime(pendingRequest.startAt)}</p>
+                    {pendingRequest.reason && <p>Reason: {pendingRequest.reason}</p>}
+                    {role !== "student" && (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <Button size="sm" onClick={() => setPendingAction({ type: "review-request", slot, decision: "approve" })}>
+                          Approve
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => setPendingAction({ type: "review-request", slot, decision: "reject" })}>
+                          Reject
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                )}
                 <div className="flex flex-wrap gap-2">
                   {role === "student" && slot.status === "available" && (
                     <Button size="sm" onClick={() => setPendingAction({ type: "book", slot })}>
@@ -376,9 +530,14 @@ export default function Interviews() {
                     </Button>
                   )}
                   {role === "student" && isMyBooking && (
-                    <Button size="sm" variant="outline" onClick={() => setPendingAction({ type: "cancel", slot })}>
-                      <XCircle className="w-3.5 h-3.5" /> Cancel
-                    </Button>
+                    <>
+                      <Button size="sm" variant="outline" onClick={() => setRequestingSlot(slot)} disabled={Boolean(pendingRequest)}>
+                        <RefreshCw className="w-3.5 h-3.5" /> Request change
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => setPendingAction({ type: "cancel", slot })}>
+                        <XCircle className="w-3.5 h-3.5" /> Cancel
+                      </Button>
+                    </>
                   )}
                   {role !== "student" && slot.status !== "cancelled" && (
                     <>
@@ -435,13 +594,24 @@ export default function Interviews() {
           }
         }}
       />
+      <RescheduleDialog
+        slot={requestingSlot}
+        requestMode
+        onClose={() => setRequestingSlot(null)}
+        onSubmit={(startAt, durationMinutes, reason) => {
+          if (requestingSlot) {
+            setPendingAction({ type: "request-reschedule", slot: requestingSlot, startAt, durationMinutes, reason });
+            setRequestingSlot(null);
+          }
+        }}
+      />
       <ConfirmDialog
         open={!!pendingAction}
         onOpenChange={(open) => !open && setPendingAction(null)}
-        title={pendingAction?.type === "book" ? "Book interview slot?" : pendingAction?.type === "reschedule" ? "Reschedule interview?" : "Cancel interview?"}
+        title={confirmTitle}
         description={confirmText}
-        confirmLabel={pendingAction?.type === "book" ? "Book slot" : pendingAction?.type === "reschedule" ? "Reschedule" : "Cancel interview"}
-        destructive={pendingAction?.type === "cancel"}
+        confirmLabel={confirmLabel}
+        destructive={pendingAction?.type === "cancel" || (pendingAction?.type === "review-request" && pendingAction.decision === "reject")}
         onConfirm={confirmPendingAction}
       />
     </DashboardLayout>

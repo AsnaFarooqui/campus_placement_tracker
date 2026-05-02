@@ -114,7 +114,8 @@ Implemented or strengthened:
 - Job posting CRUD with salary, branch, CGPA, backlog, deadline, close/edit validation.
 - Student job browsing with eligibility reasons, duplicate prevention, deadline checks, and withdrawal before deadline.
 - Application status workflow with history and invalid transition prevention.
-- Interview slot creation, booking, cancellation, rescheduling, double-booking prevention, and student conflict checks.
+- Interview slot creation, booking, cancellation, recruiter rescheduling, student reschedule requests with recruiter approval, double-booking prevention, and student conflict checks.
+- Custom/manual options for eligible branches and interview round names, so users are not limited to the default suggestions.
 - Notifications for status/interview changes plus announcements and deadline reminder API hooks.
 - Officer/admin dashboards with overall, company-wise, branch-wise, chart-ready data, and CSV/PDF-ready export endpoints.
 - Responsive navigation, clearer forms, loading/empty states, and risky-action confirmations.
