@@ -135,7 +135,7 @@ export default function Jobs() {
                     <p className="text-muted-foreground text-sm">{job.company}</p>
                     <div className="flex flex-wrap gap-3 mt-2 text-xs text-muted-foreground">
                       <span className="flex items-center gap-1"><MapPin className="w-3.5 h-3.5" />{job.location}</span>
-                      <span className="flex items-center gap-1"><DollarSign className="w-3.5 h-3.5" />₹{formatMoney(job.salaryMin)} - ₹{formatMoney(job.salaryMax)}</span>
+                      <span className="flex items-center gap-1"><DollarSign className="w-3.5 h-3.5" />Rs.{formatMoney(job.salaryMin)} - Rs. {formatMoney(job.salaryMax)}</span>
                       <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5" />Deadline: {job.deadline.slice(0, 10)}</span>
                     </div>
                     <p className="text-sm text-muted-foreground mt-3 max-w-3xl">{job.description}</p>
